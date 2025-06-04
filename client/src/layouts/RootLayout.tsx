@@ -1,5 +1,4 @@
 import { GridPattern } from "@/components/magicui/grid-pattern";
-import { TextAnimate } from "@/components/magicui/text-animate";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/routes/routes";
 import { Link, Outlet } from "react-router-dom";
@@ -15,18 +14,9 @@ function RootLayout() {
       {/*Logo */}
       <Link
         to={ROUTES.HOME}
-        className="text-2xl font-bold no-underline absolute top-2 left-1/2 -translate-x-1/2 opacity-10"
+        className=" font-bold no-underline absolute top-2 left-1/2 -translate-x-1/2 opacity-10 text-sm"
       >
-        <TextAnimate
-          animation="fadeIn"
-          by="character"
-          key="TETRAI-title-layout"
-          delay={0.2}
-          duration={0.5}
-          className="text-sm"
-        >
-          TETRAI
-        </TextAnimate>
+        TETRAI
       </Link>
 
       {/* GridPattern as a background for all pages */}

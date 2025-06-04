@@ -1,8 +1,8 @@
 import { Route, Routes, Navigate } from "react-router-dom";
-import AuthPage from "./pages/Auth"; // Renamed to AuthPage to avoid conflict if you have an Auth component
+import SignIn from "./pages/auth/SignIn"; // Renamed to AuthPage to avoid conflict if you have an Auth component
 import { ROUTES } from "./routes/routes";
 import HomePage from "./pages/Home"; // Renamed to HomePage
-import SignUpPage from "./pages/SignUp"; // Renamed to SignUpPage
+import SignUpPage from "./pages/auth/SignUp"; // Renamed to SignUpPage
 import Layout from "./layouts/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
 import "./App.css";
@@ -15,7 +15,7 @@ function App() {
       {/* Wrap all routes with RootLayout */}
       <Route element={<RootLayout />}>
         {/* Public routes */}
-        <Route path={ROUTES.AUTH} element={<AuthPage />} />
+        <Route path={ROUTES.AUTH} element={<SignIn />} />
         <Route path={ROUTES.SIGNUP} element={<SignUpPage />} />
 
         {/* Protected routes: all wrapped by Layout and ProtectedRoute */}

@@ -1,13 +1,13 @@
-import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { ROUTES } from "@/routes/routes";
 import { useAuth } from "@/hooks/useAuth"; // Import useAuth
+import { ROUTES } from "@/routes/routes";
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 
 // Remove the local storage helper, AuthProvider handles it now
 // const storage = { ... };
 
-function AuthPage() {
+function SignIn() {
   // Renamed to AuthPage
   const navigate = useNavigate();
   const { login, isAuthenticated, isLoading: authIsLoading } = useAuth(); // Use login from context
@@ -75,9 +75,17 @@ function AuthPage() {
     <div className="relative flex flex-col items-center justify-center size-full">
       <div className="w-full  flex flex-col flex-center">
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold bg-clip-text bg-gradient-to-r from-orange-500 to-purple-400 text-transparent">
+          <div className="text-4xl font-bold bg-clip-text bg-gradient-to-r from-orange-500 to-purple-400 text-transparent">
+            {/* <TextAnimate
+              animation="fadeIn"
+              by="character"
+              key="TETRAI-title-layout"
+              delay={0.2}
+              duration={1}
+            > */}
             TETRAI
-          </h1>
+            {/* </TextAnimate> */}
+          </div>
           <p className="text-lg text-gray-600">
             Your Smart Form Filling Companion⚡
           </p>
@@ -129,4 +137,4 @@ function AuthPage() {
   );
 }
 
-export default AuthPage;
+export default SignIn;
