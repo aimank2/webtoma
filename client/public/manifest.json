@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "version": "1.0",
+  "name": "Form Filler",
+  "side_panel": {
+    "default_path": "index.html"
+  },
+  "action": {
+    "default_title": "Open Side Panel"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "sidePanel",
+    "activeTab",
+    "scripting",
+    "identity",
+    "identity.email"
+  ],
+  "oauth2": {
+    "client_id": "581875153522-44qhjt4693geitf1cis0bf91rkf7dmja.apps.googleusercontent.com",
+    "scopes": ["profile", "email"]
+  },
+  "host_permissions": ["http://*/*", "https://*/*"],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self';"
+  }
+}
