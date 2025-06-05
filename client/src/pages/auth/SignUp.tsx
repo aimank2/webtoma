@@ -2,54 +2,49 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/routes/routes";
+import { useMutation } from "@tanstack/react-query"; // Import useMutation
+import api from "@/lib/api"; // Import the api instance
 
 function SignUp() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  // error will be handled by useMutation's error state
+  // const [error, setError] = useState("");
+  // loading will be handled by useMutation's isLoading state
+  // const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+
+  const signUpMutation = useMutation({
+    mutationFn: (newUser: any) => api.post("/auth/signup", newUser),
+    onSuccess: (data) => {
+      console.log("Signup successful:", data.data); // Assuming data.data from axios response
+      // alert("Signup successful! Please log in.");
+      navigate(ROUTES.AUTH); // Navigate to login page after signup
+    },
+    onError: (error: any) => {
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        "An unknown error occurred during signup.";
+      console.error("Signup error:", errorMessage);
+      // For displaying the error, you'll need a state variable if you remove error
+      // For now, logging it. Consider adding a state for UI feedback.
+      // alert(errorMessage); // Simple alert, replace with a proper UI notification
+    },
+  });
 
   const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setError("");
-    setLoading(true);
+    // It's good practice to clear previous errors from mutation if you're not using a separate state
+    // signUpMutation.reset(); // Optional: if you want to clear error on new submit attempt
 
     if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      setLoading(false);
+      // This local validation can remain, or be part of a more complex form validation strategy
+      // alert("Passwords do not match."); // Replace with UI error state if preferred
       return;
     }
-
-    try {
-      // TODO: Replace with your actual backend API endpoint
-      const response = await fetch("http://localhost:3001/api/auth/signup", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to sign up");
-      }
-
-      // Handle successful signup (e.g., store token, redirect)
-      console.log("Signup successful:", data);
-      // Potentially store token using the storage helper if returned
-      // navigate(ROUTES.HOME); // Or to a login page, or auto-login
-      alert("Signup successful! Please log in.");
-      navigate(ROUTES.AUTH); // Navigate to login page after signup
-    } catch (err: any) {
-      setError(err.message || "An unknown error occurred.");
-      console.error("Signup error:", err);
-    } finally {
-      setLoading(false);
-    }
+    signUpMutation.mutate({ email, password });
   };
 
   return (
@@ -114,11 +109,24 @@ function SignUp() {
             />
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {signUpMutation.isError && (
+            <p className="text-sm text-red-600">
+              {signUpMutation.error.response?.data?.message ||
+                signUpMutation.error.message ||
+                "Signup failed"}
+            </p>
+          )}
 
           <div>
-            <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing Up..." : "Sign Up"}
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={signUpMutation.isPending}
+            >
+              {" "}
+              {/* Use mutation's loading state */}
+              {signUpMutation.isPending ? "Signing Up..." : "Sign Up"}{" "}
+              {/* Use mutation's loading state */}
             </Button>
           </div>
         </form>

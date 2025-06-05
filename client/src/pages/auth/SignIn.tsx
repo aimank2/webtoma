@@ -1,8 +1,10 @@
 import { Button } from "@/components/ui/button";
-import { useAuth } from "@/hooks/useAuth"; // Import useAuth
+import { useAuth } from "@/hooks/useAuth";
 import { ROUTES } from "@/routes/routes";
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useMutation } from "@tanstack/react-query"; // Import useMutation
+import api from "@/lib/api"; // Import the api instance
 
 // Remove the local storage helper, AuthProvider handles it now
 // const storage = { ... };
@@ -14,44 +16,44 @@ function SignIn() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loginError, setLoginError] = useState("");
-  const [loadingLogin, setLoadingLogin] = useState(false);
+  // loginError will now be handled by useMutation's error state
+  // const [loginError, setLoginError] = useState(""); 
+  // loadingLogin will be handled by useMutation's isLoading state
+  // const [loadingLogin, setLoadingLogin] = useState(false);
 
-  // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated && !authIsLoading) {
       navigate(ROUTES.HOME, { replace: true });
     }
   }, [isAuthenticated, authIsLoading, navigate]);
 
+  const loginMutation = useMutation({
+    mutationFn: (credentials: any) => 
+      api.post("/auth/login", credentials),
+    onSuccess: (data) => {
+      // Assuming data.data contains token and user from your axios response interceptor
+      // If your api.ts already processes the response to return { token, user }, then data directly has it.
+      // Adjust based on your actual api response structure after interceptors.
+      const { token, user } = data.data; // Or simply data if interceptor returns the core data
+      login(token, user); 
+      // Navigation is handled by useEffect, or you can navigate here explicitly if preferred
+      // navigate(ROUTES.HOME);
+    },
+    onError: (error: any) => {
+      // error.response.data.message should contain the error message from backend
+      // Or adjust based on how your api errors are structured
+      const errorMessage = error.response?.data?.message || error.message || "An unknown error occurred during login.";
+      // You might want to set this to a state to display in the UI
+      console.error("Login error:", errorMessage);
+      // For displaying the error, you'll need a state variable if you remove loginError
+      // For now, logging it. Consider adding a state for UI feedback.
+      alert(errorMessage); // Simple alert, replace with a proper UI notification
+    },
+  });
+
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setLoginError("");
-    setLoadingLogin(true);
-    try {
-      const response = await fetch("http://localhost:3001/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.message || "Login failed");
-      }
-
-      // Call login from AuthContext
-      await login(data.token, data.user); // Assuming backend returns user object
-
-      // Navigation will be handled by useEffect or can be explicit here
-      // navigate(ROUTES.HOME); // This might be redundant due to useEffect
-    } catch (err: any) {
-      setLoginError(err.message || "An unknown error occurred during login.");
-      console.error("Login error:", err);
-    } finally {
-      setLoadingLogin(false);
-    }
+    loginMutation.mutate({ email, password });
   };
 
   if (authIsLoading) {
@@ -99,7 +101,7 @@ function SignIn() {
             onChange={(e) => setEmail(e.target.value)}
             required
             className="p-3 border border-gray-950 rounded-2xl w-full text-sm"
-            disabled={loadingLogin}
+            disabled={loginMutation.isPending} // Use mutation's loading state
           />
           <input
             type="password"
@@ -108,17 +110,19 @@ function SignIn() {
             onChange={(e) => setPassword(e.target.value)}
             required
             className="p-3 border border-gray-950 rounded-2xl w-full text-sm"
-            disabled={loadingLogin}
+            disabled={loginMutation.isPending} // Use mutation's loading state
           />
-          {loginError && (
-            <p className="text-red-500 text-xs text-center">{loginError}</p>
+          {loginMutation.isError && (
+            <p className="text-red-500 text-xs text-center">
+              {loginMutation.error.response?.data?.message || loginMutation.error.message || "Login failed"}
+            </p>
           )}
           <Button
             type="submit"
-            disabled={loadingLogin || authIsLoading}
+            disabled={loginMutation.isPending || authIsLoading} // Use mutation's loading state
             className="w-full py-3 text-base"
           >
-            {loadingLogin ? "Logging In..." : "Login"}
+            {loginMutation.isPending ? "Logging In..." : "Login"} {/* Use mutation's loading state */}
           </Button>
         </form>
         <div className="text-center mt-6">
