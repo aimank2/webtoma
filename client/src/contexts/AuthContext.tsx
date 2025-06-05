@@ -79,7 +79,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         headers: { Authorization: `Bearer ${jwtToken}` },
       });
       if (!response.ok) {
-        throw new Error("Failed to fetch user profile");
+        throw new Error(
+          "Some kind of error occurred<br/> Please try again later user profile"
+        );
       }
       const userData = await response.json();
       setUser(userData);

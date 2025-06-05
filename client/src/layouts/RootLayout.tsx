@@ -20,7 +20,7 @@ function RootLayout() {
       </Link>
 
       {/* GridPattern as a background for all pages */}
-      <div className="absolute inset-0 z-0 overflow-hidden">
+      <div className="absolute inset-0 -z-50 overflow-hidden">
         <GridPattern
           squares={generateRandomSquares().map(
             ([x, y]) => [x, y] as [number, number]
