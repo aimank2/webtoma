@@ -20,7 +20,7 @@ function RootLayout() {
       </Link>
 
       {/* GridPattern as a background for all pages */}
-      <div className="absolute inset-0 -z-50 overflow-hidden">
+      <div className="absolute inset-0 bg-black -z-50 overflow-hidden">
         <GridPattern
           squares={generateRandomSquares().map(
             ([x, y]) => [x, y] as [number, number]
@@ -36,6 +36,7 @@ function RootLayout() {
       </div>
 
       {/* Outlet for nested routes */}
+
       <Outlet />
     </div>
   );
