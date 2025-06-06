@@ -10,7 +10,7 @@ function RootLayout() {
       Math.floor(Math.random() * max),
     ]);
   return (
-    <div className="relative flex flex-col w-screen h-screen">
+    <div className="relative flex flex-col w-screen min-h-screen">
       {/*Logo */}
       <Link
         to={ROUTES.HOME}

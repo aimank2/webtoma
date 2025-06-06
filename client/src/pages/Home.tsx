@@ -8,11 +8,12 @@ export default function Home() {
   const [extractedHtml, setExtractedHtml] = useState<string | null>(null);
   const [structuredData, setStructuredData] = useState<PageStructure | null>(
     null
-  ); // New state for structured data
+  ); 
   const [isLoadingHtml, setIsLoadingHtml] = useState<boolean>(false);
-  const [isLoadingJson, setIsLoadingJson] = useState<boolean>(false); // New loading state for JSON
+  const [isLoadingJson, setIsLoadingJson] = useState<boolean>(false); 
   const [error, setError] = useState<string | null>(null);
   const [activeTabId, setActiveTabId] = useState<number | null>(null);
+  const [formDataInput, setFormDataInput] = useState<string>(""); // New state for form data input
 
   useEffect(() => {
     if (chrome.tabs) {
@@ -223,6 +224,22 @@ export default function Home() {
     }
   };
 
+  // Placeholder for a future function to handle form filling
+  const handleFillForm = () => {
+    if (!structuredData) {
+      setError("Please extract structured data first.");
+      return;
+    }
+    if (!formDataInput.trim()) {
+      setError("Please provide data to fill in the form.");
+      return;
+    }
+    console.log("Attempting to fill form with data:", formDataInput);
+    console.log("Using structured data:", structuredData);
+    // Actual form filling logic will go here
+    alert("Form filling functionality is not yet implemented.");
+  };
+
   return (
     <div className="container mx-auto  space-y-6 size-full ">
       <h1 className="text-2xl font-bold text-center">Page Data Extractor</h1>
@@ -274,6 +291,26 @@ export default function Home() {
             className="h-60 font-mono text-xs"
             placeholder="Structured JSON data will appear here..."
           />
+        </div>
+      )}
+
+      {/* New section for user to input data for form filling */} 
+      {structuredData && (
+        <div className="space-y-4 p-4 border rounded-md bg-gray-500 mt-4">
+          <h2 className="text-xl font-semibold">3. Provide Data to Fill Form</h2>
+          <Textarea
+            value={formDataInput}
+            onChange={(e) => setFormDataInput(e.target.value)}
+            className="h-40 font-mono text-xs"
+            placeholder='Enter data to fill the form. E.g.,\n{\n  "name": "John Doe",\n  "email": "john.doe@example.com"\n}\nOr a simple text description of what to fill.'
+          />
+          <Button 
+            onClick={handleFillForm} 
+            disabled={!formDataInput.trim()} 
+            className="w-full mt-2"
+          >
+            Fill Form with Provided Data
+          </Button>
         </div>
       )}
 
