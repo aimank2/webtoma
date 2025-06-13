@@ -1,324 +1,353 @@
+import React, { useState, useEffect, useCallback, useContext } from "react";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useEffect, useState } from "react";
-import { PageStructure } from "@/types/interfaces"; // Import PageStructure
+import HtmlExtractionCard from "@/components/page/home/HtmlExtractionCard";
+import StructuredDataCard from "@/components/page/home/StructuredDataCard";
+import FormInputCard from "@/components/page/home/FormInputCard";
+import AiResponseCard from "@/components/page/home/AiResponseCard";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
+import { AuthContext } from "@/contexts/AuthContext"; // Import AuthContext
+interface ExtractedElement {
+  tag: string;
+  attributes?: { [key: string]: string };
+  id?: string;
+  name?: string;
+  type?: string;
+  placeholder?: string;
+  label?: string;
+  text: string | null;
+  value?: string;
+}
 
-export default function Home() {
-  const [extractedHtml, setExtractedHtml] = useState<string | null>(null);
-  const [structuredData, setStructuredData] = useState<PageStructure | null>(
-    null
-  ); 
+const Home: React.FC = () => {
+  const [htmlContent, setHtmlContent] = useState<string | null>(null);
+  const [structuredData, setStructuredData] = useState<
+    ExtractedElement[] | null
+  >(null);
+  const [formDataInput, setFormDataInput] = useState<string>("");
+  const [aiResponse, setAiResponse] = useState<any | null>(null);
   const [isLoadingHtml, setIsLoadingHtml] = useState<boolean>(false);
-  const [isLoadingJson, setIsLoadingJson] = useState<boolean>(false); 
-  const [error, setError] = useState<string | null>(null);
-  const [activeTabId, setActiveTabId] = useState<number | null>(null);
-  const [formDataInput, setFormDataInput] = useState<string>(""); // New state for form data input
+  const [isLoadingStructuredData, setIsLoadingStructuredData] =
+    useState<boolean>(false);
+  const [isLoadingAiResponse, setIsLoadingAiResponse] =
+    useState<boolean>(false);
+  const { toast } = useToast();
+  const auth = useContext(AuthContext);
+
+  const extractHtml = useCallback(() => {
+    if (chrome && chrome.tabs) {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        const activeTab = tabs[0];
+        if (activeTab && activeTab.id) {
+          setIsLoadingHtml(true);
+          chrome.scripting.executeScript(
+            {
+              target: { tabId: activeTab.id },
+              func: () => document.documentElement.outerHTML,
+            },
+            (injectionResults) => {
+              setIsLoadingHtml(false);
+              if (chrome.runtime.lastError) {
+                console.error(
+                  "Error injecting script:",
+                  chrome.runtime.lastError.message
+                );
+                toast({
+                  title: "Error",
+                  description: `Failed to extract HTML: ${chrome.runtime.lastError.message}`,
+                  variant: "destructive",
+                });
+                setHtmlContent(null);
+                return;
+              }
+              if (
+                injectionResults &&
+                injectionResults[0] &&
+                injectionResults[0].result
+              ) {
+                setHtmlContent(injectionResults[0].result as string);
+              } else {
+                setHtmlContent(null);
+                toast({
+                  title: "Error",
+                  description: "Could not extract HTML from the page.",
+                  variant: "destructive",
+                });
+              }
+            }
+          );
+        } else {
+          toast({
+            title: "Error",
+            description: "No active tab found.",
+            variant: "destructive",
+          });
+        }
+      });
+    } else {
+      // Fallback for development when not in extension environment
+      console.warn("Chrome tabs API not available. Using mock HTML.");
+      setHtmlContent(
+        '<html><body><h1>Mock Content</h1><input type="text" name="mock_field" /><button>Submit</button></body></html>'
+      );
+      toast({
+        title: "Dev Mode",
+        description: "Chrome tabs API not available. Loaded mock HTML.",
+      });
+    }
+  }, [toast]);
 
   useEffect(() => {
-    if (chrome.tabs) {
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        if (tabs[0] && tabs[0].id) {
-          setActiveTabId(tabs[0].id);
-        } else {
-          setError(
-            "Could not get active tab ID. Ensure the extension has tab permissions and is running in a valid context."
-          );
-          console.error("Could not get active tab ID.");
-        }
+    // Automatically extract HTML when the component mounts
+    extractHtml();
+  }, [extractHtml]);
+
+  const structureData = useCallback(async () => {
+    if (!htmlContent) {
+      toast({
+        title: "Error",
+        description: "No HTML content to structure.",
+        variant: "destructive",
       });
-    }
-  }, []);
-
-  const handleExtractPageSource = async () => {
-    if (!chrome.scripting || !activeTabId) {
-      const errorMessage =
-        "Chrome scripting API is not available or active tab ID is missing. Ensure you are running this in an extension context with appropriate permissions.";
-      setError(errorMessage);
-      console.error(errorMessage, { scripting: chrome.scripting, activeTabId });
       return;
     }
-
-    setIsLoadingHtml(true);
-    setError(null);
-    setExtractedHtml(null);
-    setStructuredData(null); // Reset structured data as well
-
+    setIsLoadingStructuredData(true);
     try {
-      const injectionResults = await chrome.scripting.executeScript<[], string>(
-        {
-          target: { tabId: activeTabId },
-          func: () => document.documentElement.outerHTML,
-        }
-      );
-
-      if (
-        injectionResults &&
-        injectionResults.length > 0 &&
-        injectionResults[0].result
-      ) {
-        const rawHtml = injectionResults[0].result;
-        setExtractedHtml(rawHtml);
-        console.log("Extracted Page HTML:", rawHtml.substring(0, 500)); // Log a snippet
-      } else {
-        const scriptError =
-          "Failed to extract page source. The script might have returned no result or an empty result.";
-        console.error(scriptError, injectionResults);
-        setError(scriptError);
-      }
-    } catch (e: any) {
-      console.error("Error executing script to extract page source:", e);
-      setError(`Error extracting page source: ${e.message}`);
-    } finally {
-      setIsLoadingHtml(false);
-    }
-  };
-
-  const handleExtractStructuredData = async () => {
-    if (!extractedHtml) {
-      setError("Please extract the page HTML first");
-      return;
-    }
-
-    setIsLoadingJson(true);
-    setError(null);
-    setStructuredData(null);
-
-    try {
-      // Create a temporary DOM parser
+      // In a real scenario, you might send this to a backend or use a client-side library for structuring.
+      // For now, let's simulate a simple structuring process.
+      // This is a placeholder. You'll need a proper HTML parsing and structuring logic here.
+      // For example, using DOMParser and selecting relevant elements.
       const parser = new DOMParser();
-      const doc = parser.parseFromString(extractedHtml, "text/html");
-
-      // Helper function to get element attributes
-      const getElementAttributes = (element: Element) => ({
-        id: element.id || undefined,
-        className: element.className || undefined,
-        name: element.getAttribute("name") || undefined,
-        dataTestId: element.getAttribute("data-testid") || undefined,
-        text: element.textContent?.trim() || undefined,
+      const doc = parser.parseFromString(htmlContent, "text/html");
+      const inputs = Array.from(
+        doc.querySelectorAll("input, textarea, select, button")
+      );
+      const data: ExtractedElement[] = inputs.map((el) => ({
+        tag: el.tagName.toLowerCase(),
+        attributes: Array.from(el.attributes).reduce((acc, attr) => {
+          acc[attr.name] = attr.value;
+          return acc;
+        }, {} as { [key: string]: string }),
+        id: el.id || undefined,
+        name: (el as HTMLInputElement).name || undefined,
+        type: (el as HTMLInputElement).type || undefined,
+        placeholder: (el as HTMLInputElement).placeholder || undefined,
+        label:
+          el.closest("label")?.textContent?.trim() ||
+          doc.querySelector(`label[for='${el.id}']`)?.textContent?.trim() ||
+          undefined,
+        text: el.textContent?.trim() || null,
+      }));
+      setStructuredData(data);
+      toast({
+        title: "Success",
+        description: "HTML structured successfully (simulated).",
       });
-
-      // Helper function to extract element data recursively
-      const extractElementData = (element: Element): any | null => {
-        const tagName = element.tagName.toLowerCase();
-
-        // Skip irrelevant elements
-        if (["script", "style", "meta", "link", "noscript"].includes(tagName)) {
-          return null;
-        }
-
-        const baseAttributes = getElementAttributes(element);
-
-        switch (tagName) {
-          case "input": {
-            const input = element as HTMLInputElement;
-            return {
-              tag: "input",
-              ...baseAttributes,
-              type: input.type,
-              value: input.value,
-              checked:
-                input.type === "checkbox" || input.type === "radio"
-                  ? input.checked
-                  : undefined,
-              placeholder: input.placeholder || undefined,
-              required: input.required,
-              disabled: input.disabled,
-            };
-          }
-          case "select": {
-            const select = element as HTMLSelectElement;
-            return {
-              tag: "select",
-              ...baseAttributes,
-              value: select.value,
-              required: select.required,
-              disabled: select.disabled,
-              multiple: select.multiple,
-              options: Array.from(select.options).map((opt) => ({
-                tag: "option",
-                value: opt.value,
-                text: opt.text,
-                selected: opt.selected,
-              })),
-            };
-          }
-          case "textarea": {
-            const textarea = element as HTMLTextAreaElement;
-            return {
-              tag: "textarea",
-              ...baseAttributes,
-              value: textarea.value,
-              placeholder: textarea.placeholder || undefined,
-              required: textarea.required,
-              disabled: textarea.disabled,
-              rows: textarea.rows,
-              cols: textarea.cols,
-            };
-          }
-          case "button": {
-            const button = element as HTMLButtonElement;
-            return {
-              tag: "button",
-              ...baseAttributes,
-              type: button.type || "submit",
-              disabled: button.disabled,
-            };
-          }
-          case "label": {
-            return {
-              tag: "label",
-              ...baseAttributes,
-              htmlFor: element.getAttribute("for") || undefined,
-            };
-          }
-          case "form": {
-            const form = element as HTMLFormElement;
-            return {
-              tag: "form",
-              ...baseAttributes,
-              action: form.action || undefined,
-              method: form.method as "GET" | "POST",
-              children: Array.from(element.children)
-                .map((child) => extractElementData(child))
-                .filter(Boolean) as any[],
-            };
-          }
-          case "fieldset": {
-            return {
-              tag: "fieldset",
-              ...baseAttributes,
-              disabled: (element as HTMLFieldSetElement).disabled,
-              children: Array.from(element.children)
-                .map((child) => extractElementData(child))
-                .filter(Boolean) as any[],
-            };
-          }
-          default:
-            return null;
-        }
-      };
-
-      // Extract all relevant form elements
-      const formElements = Array.from(
-        doc.querySelectorAll(
-          "form, input, select, textarea, button, label, fieldset"
-        )
-      )
-        .map((element) => extractElementData(element))
-        .filter(Boolean) as any[];
-
-      const pageStructure: PageStructure = {
-        url: window.location.href,
-        title: doc.title,
-        timestamp: new Date().toISOString(),
-        formStructure: formElements,
-      };
-
-      setStructuredData(pageStructure);
-    } catch (e: any) {
-      console.error("Error processing HTML to structured data:", e);
-      setError(`Error processing HTML: ${e.message}`);
-    } finally {
-      setIsLoadingJson(false);
+    } catch (error) {
+      console.error("Error structuring data:", error);
+      toast({
+        title: "Error",
+        description: "Failed to structure HTML.",
+        variant: "destructive",
+      });
+      setStructuredData(null);
     }
-  };
+    setIsLoadingStructuredData(false);
+  }, [htmlContent, toast]);
 
-  // Placeholder for a future function to handle form filling
-  const handleFillForm = () => {
+  const handleFillForm = async () => {
     if (!structuredData) {
-      setError("Please extract structured data first.");
+      toast({
+        title: "Error",
+        description: "No structured data available to fill.",
+        variant: "destructive",
+      });
       return;
     }
     if (!formDataInput.trim()) {
-      setError("Please provide data to fill in the form.");
+      toast({
+        title: "Warning",
+        description: "Please provide input for the AI.",
+        variant: "default",
+      });
       return;
     }
-    console.log("Attempting to fill form with data:", formDataInput);
-    console.log("Using structured data:", structuredData);
-    // Actual form filling logic will go here
-    alert("Form filling functionality is not yet implemented.");
+
+    if (!auth || !auth.token) {
+      toast({
+        title: "Authentication Error",
+        description: "You are not logged in or your session has expired.",
+        variant: "destructive",
+      });
+      setIsLoadingAiResponse(false);
+      return;
+    }
+
+    setIsLoadingAiResponse(true);
+    setAiResponse(null);
+
+    try {
+      const response = await fetch(
+        "http://localhost:3001/api/requests/openai/map-form",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${auth.token}`, // Use the token from AuthContext
+          },
+          body: JSON.stringify({
+            // Ensure the key matches what the backend expects for pageStructure.formStructure
+            // Based on your server/routes/requests.js, it expects `pageStructure` which contains `formStructure`
+            pageStructure: { formStructure: structuredData },
+            userInput: formDataInput,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (e: any) {
+          errorData = { message: "Failed to parse error response.", e };
+        }
+        // Log the full error response from the server for more details
+        console.error("API Error Data:", errorData);
+        throw new Error(
+          `API request failed with status ${response.status}: ${
+            errorData.message || "Unknown error"
+          }`
+        );
+      }
+
+      const result = await response.json();
+      // Assuming your backend returns the AI response directly, not nested under 'data'
+      // Based on server/routes/requests.js, it sends `mappedFormData` directly.
+      setAiResponse(result);
+      toast({ title: "Success", description: "Form data processed by AI." });
+
+      // Optional: Fill the actual form on the page
+      if (result.data && result.data.filledForm && chrome && chrome.tabs) {
+        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+          const activeTab = tabs[0];
+          if (activeTab && activeTab.id) {
+            chrome.scripting.executeScript({
+              target: { tabId: activeTab.id },
+              func: (formDataToFill: ExtractedElement[]) => {
+                formDataToFill.forEach((item) => {
+                  let element: HTMLElement | null = null;
+                  if (item.attributes?.id) {
+                    element = document.getElementById(item.attributes.id);
+                  } else if (item.attributes?.name) {
+                    element = document.querySelector(
+                      `[name="${item.attributes.name}"]`
+                    );
+                  }
+                  // Add more selectors if needed (e.g., by label, placeholder)
+
+                  if (element && typeof item.value === "string") {
+                    if (
+                      element.tagName === "INPUT" ||
+                      element.tagName === "TEXTAREA"
+                    ) {
+                      (
+                        element as HTMLInputElement | HTMLTextAreaElement
+                      ).value = item.value;
+                      // Dispatch input and change events to simulate user interaction
+                      element.dispatchEvent(
+                        new Event("input", { bubbles: true })
+                      );
+                      element.dispatchEvent(
+                        new Event("change", { bubbles: true })
+                      );
+                    } else if (element.tagName === "SELECT") {
+                      (element as HTMLSelectElement).value = item.value;
+                      element.dispatchEvent(
+                        new Event("change", { bubbles: true })
+                      );
+                    }
+                    // Add handling for other element types like checkboxes, radio buttons if needed
+                  }
+                });
+              },
+              args: [result.data.filledForm as ExtractedElement[]],
+            });
+          }
+        });
+      }
+    } catch (error) {
+      console.error("Error filling form with AI:", error);
+      const errorMessage =
+        error instanceof Error ? error.message : "An unknown error occurred.";
+      setAiResponse({ error: errorMessage });
+      toast({
+        title: "Error",
+        description: `AI processing failed: ${errorMessage}`,
+        variant: "destructive",
+      });
+    }
+    setIsLoadingAiResponse(false);
   };
 
   return (
-    <div className="container mx-auto  space-y-6 size-full ">
-      <h1 className="text-2xl font-bold text-center">Page Data Extractor</h1>
+    <div className="container mx-auto p-4 space-y-6">
+      <h1 className="text-3xl font-bold text-center mb-8">
+        AI Form Filler Extension
+      </h1>
 
-      {error && (
-        <Alert variant="destructive">
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
+      <HtmlExtractionCard
+        htmlContent={htmlContent}
+        extractHtml={extractHtml}
+        isLoading={isLoadingHtml}
+        structureData={structureData}
+        canStructure={!!htmlContent}
+      />
 
-      <div className="space-y-2">
-        <Button
-          onClick={handleExtractPageSource}
-          disabled={isLoadingHtml || !activeTabId}
-          className="w-full"
-        >
-          {isLoadingHtml ? "1. Extracting HTML..." : "1. Extract Page HTML"}
-        </Button>
-      </div>
+      <StructuredDataCard
+        structuredData={structuredData}
+        isLoading={isLoadingStructuredData}
+      />
 
-      {extractedHtml && (
-        <div className="space-y-4 p-4 border rounded-md bg-gray-500 mt-4">
-          <h2 className="text-xl font-semibold">Extracted Page HTML</h2>
-          <Textarea
-            readOnly
-            value={extractedHtml}
-            className="h-40 font-mono text-xs"
-            placeholder="HTML content of the active page will appear here..."
-          />
-          <Button
-            onClick={handleExtractStructuredData}
-            disabled={isLoadingJson || !activeTabId}
-            className="w-full mt-2"
-          >
-            {isLoadingJson
-              ? "2. Processing to JSON..."
-              : "2. Extract Structured JSON"}
-          </Button>
-        </div>
-      )}
+      <FormInputCard
+        formDataInput={formDataInput}
+        setFormDataInput={setFormDataInput}
+        handleFillForm={handleFillForm}
+        isLoadingAiResponse={isLoadingAiResponse}
+        structuredData={structuredData}
+      />
 
-      {structuredData && (
-        <div className="space-y-4 border rounded-md bg-gray-500 mt-4">
-          <h2 className="text-xl font-semibold">Structured Page Data (JSON)</h2>
-          <Textarea
-            readOnly
-            value={JSON.stringify(structuredData, null, 2)}
-            className="h-60 font-mono text-xs"
-            placeholder="Structured JSON data will appear here..."
-          />
-        </div>
-      )}
+      <AiResponseCard
+        aiResponse={aiResponse}
+        isLoadingAiResponse={isLoadingAiResponse}
+      />
 
-      {/* New section for user to input data for form filling */} 
-      {structuredData && (
-        <div className="space-y-4 p-4 border rounded-md bg-gray-500 mt-4">
-          <h2 className="text-xl font-semibold">3. Provide Data to Fill Form</h2>
-          <Textarea
-            value={formDataInput}
-            onChange={(e) => setFormDataInput(e.target.value)}
-            className="h-40 font-mono text-xs"
-            placeholder='Enter data to fill the form. E.g.,\n{\n  "name": "John Doe",\n  "email": "john.doe@example.com"\n}\nOr a simple text description of what to fill.'
-          />
-          <Button 
-            onClick={handleFillForm} 
-            disabled={!formDataInput.trim()} 
-            className="w-full mt-2"
-          >
-            Fill Form with Provided Data
-          </Button>
-        </div>
-      )}
-
-      {!extractedHtml && !isLoadingHtml && !isLoadingJson && !error && (
-        <div className="text-center text-gray-500 py-10">
-          <p>Click "1. Extract Page HTML" to begin.</p>
-        </div>
+      {/* For debugging or direct interaction with Chrome APIs if needed */}
+      {process.env.NODE_ENV === "development" && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Dev Tools</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Button
+              onClick={() => {
+                if (chrome && chrome.runtime && chrome.runtime.getURL) {
+                  console.log("Extension base URL:", chrome.runtime.getURL(""));
+                } else {
+                  console.log("Chrome runtime API not available.");
+                }
+              }}
+            >
+              Log Extension URL
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Ensure you are running this in an unpacked extension environment
+              for Chrome APIs to work.
+            </p>
+          </CardContent>
+        </Card>
       )}
     </div>
   );
-}
+};
+
+export default Home;

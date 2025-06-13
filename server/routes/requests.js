@@ -2,7 +2,7 @@ const express = require('express');
 const authenticateJWT = require('../middleware/auth');
 const AutomationRequest = require('../models/AutomationRequest');
 const deepseekService = require('../services/deepseek');
-const openaiService = require('../services/openai'); // Add this line
+const openaiService = require('../services/openai');
 const router = express.Router();
 
 router.post('/', authenticateJWT, async (req, res) => {
@@ -129,6 +129,42 @@ router.get('/:id', authenticateJWT, async (req, res) => {
   const request = await AutomationRequest.findOne({ _id: req.params.id, userId: req.user.id });
   if (!request) return res.sendStatus(404);
   res.json(request);
+});
+
+// New POST route for mapping user input to form using the detailed pre-prompt
+router.post('/openai/map-form', authenticateJWT, async (req, res) => {
+  try {
+    const { userInput, pageStructure } = req.body; // pageStructure here is your client-side PageStructure interface
+
+    if (!userInput || !pageStructure) {
+      return res.status(400).json({
+        message: 'Both userInput and pageStructure are required'
+      });
+    }
+    if (!pageStructure.formStructure || !Array.isArray(pageStructure.formStructure)) {
+      return res.status(400).json({
+        message: 'pageStructure must contain a formStructure array.'
+      });
+    }
+
+    // We don't necessarily need to save this as an AutomationRequest unless you want to log it.
+    // This example directly calls the service and returns the result.
+    // If you want to log it, you would create an AutomationRequest entry here.
+
+    const mappedFormData = await openaiService.mapUserInputToForm(
+      userInput,
+      pageStructure // Pass the full PageStructure object as defined on your client
+    );
+
+    res.status(200).json(mappedFormData); // Send back the AI's structured response
+
+  } catch (error) {
+    console.error('OpenAI Map Form processing error:', error);
+    res.status(500).json({
+      message: 'Internal server error during OpenAI form mapping',
+      error: error.message
+    });
+  }
 });
 
 module.exports = router;
