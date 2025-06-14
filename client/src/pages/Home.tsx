@@ -224,8 +224,6 @@ const Home: React.FC = () => {
       setAiResponse(result);
       toast({ title: "Success", description: "Form data processed by AI." });
 
-      // Fill the actual form on the page with the AI response
-      // The 'result' is expected to be the FormStructure object from the backend
       if (
         result &&
         result.fields &&
@@ -242,190 +240,308 @@ const Home: React.FC = () => {
                 status: string;
                 fields: ExtractedElement[];
               }) => {
+                let fieldsProcessed = 0;
+                let fieldsFilledSuccessfully = 0;
+                let fieldsSkipped = 0;
+                const warnings: string[] = [];
+
                 if (formStructure && formStructure.fields) {
                   formStructure.fields.forEach((item) => {
-                    let element: HTMLElement | null = null;
-                    const {
-                      type,
-                      name,
-                      value,
-                      placeholder,
-                      label,
-                      attributes,
-                      id: itemId,
-                    } = item;
+                    fieldsProcessed++;
+                    try {
+                      let element: HTMLElement | null = null;
+                      const {
+                        type,
+                        name,
+                        value,
+                        placeholder,
+                        label,
+                        attributes,
+                        id: itemId,
+                        tag,
+                      } = item;
+                      const fieldIdentifier = `Field (Type: ${
+                        type || "N/A"
+                      }, Name: ${name || "N/A"}, Label: ${
+                        label || "N/A"
+                      }, ID: ${itemId || attributes?.id || "N/A"})`;
 
-                    // 1. Try by ID (if provided in item.id or item.attributes.id)
-                    const effectiveId = itemId || attributes?.id;
-                    if (effectiveId) {
-                      element = document.getElementById(effectiveId);
-                    }
-
-                    // 2. Try by name (if element not found and name is present)
-                    if (!element && name) {
-                      element = document.querySelector(`[name="${name}"]`);
-                    }
-
-                    // 3. Try by a combination of attributes for more specific targeting if needed
-                    // This can be expanded based on common patterns
-                    if (!element && attributes) {
-                      let selector = item.tag || ""; // Start with tag if available
-                      for (const [key, val] of Object.entries(attributes)) {
-                        if (key !== "id" && key !== "name") {
-                          // id and name already tried
-                          selector += `[${key}="${val}"]`;
+                      // Element finding logic
+                      try {
+                        const effectiveId = itemId || attributes?.id;
+                        if (effectiveId) {
+                          element = document.getElementById(effectiveId);
                         }
-                      }
-                      if (selector && selector !== item.tag) {
-                        // only query if attributes were added
-                        try {
-                          element = document.querySelector(selector);
-                        } catch (e) {
-                          console.warn(
-                            "Error with complex selector:",
-                            selector,
-                            e
-                          );
+                        if (!element && name) {
+                          element = document.querySelector(`[name="${name}"]`);
                         }
-                      }
-                    }
-
-                    // 4. Try by label text (if element still not found and label is present)
-                    if (!element && label) {
-                      const labels = Array.from(
-                        document.querySelectorAll("label")
-                      );
-                      const matchingLabel = labels.find(
-                        (l) =>
-                          l.textContent?.trim().toLowerCase() ===
-                          label.trim().toLowerCase()
-                      );
-                      if (matchingLabel) {
-                        if (matchingLabel.htmlFor) {
-                          element = document.getElementById(
-                            matchingLabel.htmlFor
+                        if (!element && attributes) {
+                          let selector = tag || "";
+                          for (const [key, val] of Object.entries(attributes)) {
+                            if (key !== "id" && key !== "name") {
+                              selector += `[${key}="${val}"]`;
+                            }
+                          }
+                          if (selector && selector !== tag) {
+                            element = document.querySelector(selector);
+                          }
+                        }
+                        if (!element && label) {
+                          const labels = Array.from(
+                            document.querySelectorAll("label")
                           );
-                        } else {
-                          // Try to find an input/select/textarea as a child or sibling
-                          element = matchingLabel.querySelector(
-                            "input, select, textarea"
+                          const matchingLabel = labels.find(
+                            (l) =>
+                              l.textContent?.trim().toLowerCase() ===
+                              label.trim().toLowerCase()
                           );
-                          if (!element) {
-                            let nextSibling = matchingLabel.nextElementSibling;
-                            while (nextSibling) {
-                              if (
-                                nextSibling.matches("input, select, textarea")
-                              ) {
-                                element = nextSibling as HTMLElement;
-                                break;
+                          if (matchingLabel) {
+                            if (matchingLabel.htmlFor)
+                              element = document.getElementById(
+                                matchingLabel.htmlFor
+                              );
+                            else
+                              element = matchingLabel.querySelector(
+                                "input, select, textarea"
+                              );
+                            if (!element) {
+                              let nextSibling =
+                                matchingLabel.nextElementSibling;
+                              while (nextSibling) {
+                                if (
+                                  nextSibling.matches("input, select, textarea")
+                                ) {
+                                  element = nextSibling as HTMLElement;
+                                  break;
+                                }
+                                nextSibling = nextSibling.nextElementSibling;
                               }
-                              nextSibling = nextSibling.nextElementSibling;
                             }
                           }
                         }
-                      }
-                    }
-
-                    // 5. Fallback: If still not found, try a more generic query using type and placeholder
-                    if (!element && type && placeholder) {
-                      element = document.querySelector(
-                        `${
-                          item.tag || "input"
-                        }[type="${type}"][placeholder="${placeholder}"]`
-                      );
-                    }
-                    if (!element && type && !placeholder && name) {
-                      // If placeholder is empty but name exists
-                      element = document.querySelector(
-                        `${item.tag || "input"}[type="${type}"][name="${name}"]`
-                      );
-                    }
-
-                    if (element && value !== undefined && value !== null) {
-                      const tagName = element.tagName.toLowerCase();
-                      const inputType = (
-                        element as HTMLInputElement
-                      ).type?.toLowerCase();
-
-                      if (tagName === "input") {
-                        switch (inputType) {
-                          case "checkbox":
-                            (element as HTMLInputElement).checked = [
-                              "true",
-                              "checked",
-                              "on",
-                              "yes",
-                              1,
-                            ].includes(String(value).toLowerCase());
-                            break;
-                          case "radio":
-                            // For radio buttons, we need to find the specific radio button with the matching value within its group
-                            if (name) {
-                              const radioToSelect = document.querySelector(
-                                `input[type="radio"][name="${name}"][value="${value}"]`
-                              ) as HTMLInputElement;
-                              if (radioToSelect) radioToSelect.checked = true;
-                            } else {
-                              // if no name, assume this is the one if value matches
-                              if (
-                                (element as HTMLInputElement).value ===
-                                String(value)
-                              ) {
-                                (element as HTMLInputElement).checked = true;
-                              }
-                            }
-                            break;
-                          case "file":
-                            console.warn(
-                              "File input filling is not supported for security reasons."
-                            );
-                            break;
-                          default: // text, email, password, number, date, etc.
-                            (element as HTMLInputElement).value = String(value);
+                        if (!element && type && placeholder) {
+                          element = document.querySelector(
+                            `${
+                              tag || "input"
+                            }[type="${type}"][placeholder="${placeholder}"]`
+                          );
                         }
-                      } else if (
-                        tagName === "textarea" ||
-                        tagName === "select"
-                      ) {
-                        (
-                          element as HTMLTextAreaElement | HTMLSelectElement
-                        ).value = String(value);
+                        if (!element && type && !placeholder && name) {
+                          element = document.querySelector(
+                            `${tag || "input"}[type="${type}"][name="${name}"]`
+                          );
+                        }
+                      } catch (e: any) {
+                        const warningMsg = `${fieldIdentifier}: Error during element search: ${e.message}`;
+                        console.warn(warningMsg);
+                        warnings.push(warningMsg);
+                        fieldsSkipped++;
+                        return; // Skip to next item in forEach
                       }
 
-                      // Dispatch events to simulate user interaction and trigger any attached listeners
-                      ["input", "change", "blur"].forEach((eventType) => {
-                        element!.dispatchEvent(
-                          new Event(eventType, {
-                            bubbles: true,
-                            cancelable: true,
-                          })
-                        );
-                      });
-                      element.style.backgroundColor = "#e6ffe6"; // Highlight filled field
-                    }
+                      if (!element) {
+                        const warningMsg = `${fieldIdentifier}: Element not found on page.`;
+                        console.warn(warningMsg);
+                        warnings.push(warningMsg);
+                        fieldsSkipped++;
+                        return; // Skip to next item in forEach
+                      }
 
-                    // Handle button clicks if status is 'click' or similar
-                    if (
-                      element &&
-                      element.tagName.toLowerCase() === "button" &&
-                      ((item as any).status === "click" ||
-                        (type === "submit" &&
-                          (item as any).status !== "waiting"))
-                    ) {
                       if (
-                        (element as HTMLButtonElement).type === "submit" &&
-                        (item as any).status !== "waiting_for_submit"
+                        (
+                          element as
+                            | HTMLInputElement
+                            | HTMLTextAreaElement
+                            | HTMLSelectElement
+                        ).disabled
                       ) {
-                        console.log(
-                          `Clicking button: ${label || name || itemId}`
-                        );
-                        (element as HTMLButtonElement).click();
+                        const warningMsg = `${fieldIdentifier}: Element is disabled. Skipping.`;
+                        console.warn(warningMsg);
+                        warnings.push(warningMsg);
+                        fieldsSkipped++;
+                        return;
                       }
+                      if (
+                        (element as HTMLInputElement | HTMLTextAreaElement)
+                          .readOnly
+                      ) {
+                        const warningMsg = `${fieldIdentifier}: Element is readonly. Skipping.`;
+                        console.warn(warningMsg);
+                        warnings.push(warningMsg);
+                        fieldsSkipped++;
+                        return;
+                      }
+
+                      if (value !== undefined && value !== null) {
+                        const tagName = element.tagName.toLowerCase();
+                        const inputType = (
+                          element as HTMLInputElement
+                        ).type?.toLowerCase();
+
+                        if (tagName === "input") {
+                          switch (inputType) {
+                            case "checkbox": {
+                              (element as HTMLInputElement).checked = [
+                                "true",
+                                "checked",
+                                "on",
+                                "yes",
+                                1,
+                              ].includes(String(value).toLowerCase());
+                              break;
+                            }
+                            case "radio": {
+                              if (name) {
+                                const radioToSelect = document.querySelector(
+                                  `input[type="radio"][name="${name}"][value="${value}"]`
+                                ) as HTMLInputElement;
+                                if (radioToSelect) radioToSelect.checked = true;
+                                else {
+                                  const warningMsg = `${fieldIdentifier}: Radio option with value '${value}' not found.`;
+                                  console.warn(warningMsg);
+                                  warnings.push(warningMsg);
+                                  fieldsSkipped++;
+                                  return;
+                                }
+                              } else {
+                                if (
+                                  (element as HTMLInputElement).value ===
+                                  String(value)
+                                )
+                                  (element as HTMLInputElement).checked = true;
+                                else {
+                                  const warningMsg = `${fieldIdentifier}: Radio (no name) value mismatch. Expected '${
+                                    (element as HTMLInputElement).value
+                                  }', got '${value}'.`;
+                                  console.warn(warningMsg);
+                                  warnings.push(warningMsg);
+                                  fieldsSkipped++;
+                                  return;
+                                }
+                              }
+                              break;
+                            }
+                            case "file": {
+                              const warningMsgFile = `${fieldIdentifier}: File input filling is not supported. Skipping.`;
+                              console.warn(warningMsgFile);
+                              warnings.push(warningMsgFile);
+                              fieldsSkipped++;
+                              return;
+                            }
+                            default: {
+                              (element as HTMLInputElement).value =
+                                String(value);
+                            }
+                          }
+                        } else if (
+                          tagName === "textarea" ||
+                          tagName === "select"
+                        ) {
+                          if (tagName === "select") {
+                            const selectElement = element as HTMLSelectElement;
+                            const optionExists = Array.from(
+                              selectElement.options
+                            ).some((opt) => opt.value === String(value));
+                            if (!optionExists) {
+                              const warningMsg = `${fieldIdentifier}: Option with value '${value}' not found in select. Skipping.`;
+                              console.warn(warningMsg);
+                              warnings.push(warningMsg);
+                              fieldsSkipped++;
+                              return;
+                            }
+                          }
+                          (
+                            element as HTMLTextAreaElement | HTMLSelectElement
+                          ).value = String(value);
+                        } else {
+                          const warningMsg = `${fieldIdentifier}: Unsupported element tag '${tagName}'. Skipping.`;
+                          console.warn(warningMsg);
+                          warnings.push(warningMsg);
+                          fieldsSkipped++;
+                          return;
+                        }
+
+                        ["input", "change", "blur"].forEach((eventType) => {
+                          element!.dispatchEvent(
+                            new Event(eventType, {
+                              bubbles: true,
+                              cancelable: true,
+                            })
+                          );
+                        });
+                        element.style.backgroundColor = "#e6ffe6";
+                        fieldsFilledSuccessfully++;
+                      } else {
+                        // Value is null or undefined, consider it a skip unless it's a button for clicking
+                        if (
+                          !(
+                            element.tagName.toLowerCase() === "button" &&
+                            ((item as any).status === "click" ||
+                              (type === "submit" &&
+                                (item as any).status !== "waiting"))
+                          )
+                        ) {
+                          const warningMsg = `${fieldIdentifier}: No value provided to fill. Skipping.`;
+                          console.warn(warningMsg);
+                          warnings.push(warningMsg);
+                          fieldsSkipped++;
+                          return;
+                        }
+                      }
+
+                      if (
+                        element &&
+                        element.tagName.toLowerCase() === "button" &&
+                        ((item as any).status === "click" ||
+                          (type === "submit" &&
+                            (item as any).status !== "waiting"))
+                      ) {
+                        if (
+                          (element as HTMLButtonElement).type === "submit" &&
+                          (item as any).status !== "waiting_for_submit"
+                        ) {
+                          console.log(
+                            `Attempting to click button: ${fieldIdentifier}`
+                          );
+                          (element as HTMLButtonElement).click();
+                          fieldsFilledSuccessfully++; // Count button click as a successful action
+                        } else if (
+                          (element as HTMLButtonElement).type !== "submit"
+                        ) {
+                          console.log(
+                            `Attempting to click button: ${fieldIdentifier}`
+                          );
+                          (element as HTMLButtonElement).click();
+                          fieldsFilledSuccessfully++;
+                        }
+                      }
+                    } catch (e: any) {
+                      const fieldIdentifier = `Field (Type: ${
+                        item.type || "N/A"
+                      }, Name: ${item.name || "N/A"}, Label: ${
+                        item.label || "N/A"
+                      })`;
+                      const warningMsg = `${fieldIdentifier}: Unhandled error during processing: ${e.message}. Skipping.`;
+                      console.warn(warningMsg);
+                      warnings.push(warningMsg);
+                      fieldsSkipped++;
                     }
                   });
                 }
+                // Summary Logging
+                console.log(`--- Autofill Summary ---`);
+                console.log(`✅ Total Fields Processed: ${fieldsProcessed}`);
+                console.log(
+                  `👍 Fields Filled/Actioned Successfully: ${fieldsFilledSuccessfully}`
+                );
+                console.log(`⚠️ Fields Skipped (Warnings): ${fieldsSkipped}`);
+                if (warnings.length > 0) {
+                  console.warn("Detailed Warnings:");
+                  warnings.forEach((w) => console.warn(w));
+                }
+                console.log(`----------------------`);
               },
-              args: [result as { status: string; fields: ExtractedElement[] }], // Pass the whole AI response
+              args: [result as { status: string; fields: ExtractedElement[] }],
             });
           }
         });
