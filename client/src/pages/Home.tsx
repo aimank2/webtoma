@@ -220,57 +220,212 @@ const Home: React.FC = () => {
         );
       }
 
-      const result = await response.json();
-      // Assuming your backend returns the AI response directly, not nested under 'data'
-      // Based on server/routes/requests.js, it sends `mappedFormData` directly.
+      const result = await response.json(); // This is the FormStructure like object
       setAiResponse(result);
       toast({ title: "Success", description: "Form data processed by AI." });
 
-      // Optional: Fill the actual form on the page
-      if (result.data && result.data.filledForm && chrome && chrome.tabs) {
+      // Fill the actual form on the page with the AI response
+      // The 'result' is expected to be the FormStructure object from the backend
+      if (
+        result &&
+        result.fields &&
+        Array.isArray(result.fields) &&
+        chrome &&
+        chrome.tabs
+      ) {
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
           const activeTab = tabs[0];
           if (activeTab && activeTab.id) {
             chrome.scripting.executeScript({
               target: { tabId: activeTab.id },
-              func: (formDataToFill: ExtractedElement[]) => {
-                formDataToFill.forEach((item) => {
-                  let element: HTMLElement | null = null;
-                  if (item.attributes?.id) {
-                    element = document.getElementById(item.attributes.id);
-                  } else if (item.attributes?.name) {
-                    element = document.querySelector(
-                      `[name="${item.attributes.name}"]`
-                    );
-                  }
-                  // Add more selectors if needed (e.g., by label, placeholder)
+              func: (formStructure: {
+                status: string;
+                fields: ExtractedElement[];
+              }) => {
+                if (formStructure && formStructure.fields) {
+                  formStructure.fields.forEach((item) => {
+                    let element: HTMLElement | null = null;
+                    const {
+                      type,
+                      name,
+                      value,
+                      placeholder,
+                      label,
+                      attributes,
+                      id: itemId,
+                    } = item;
 
-                  if (element && typeof item.value === "string") {
-                    if (
-                      element.tagName === "INPUT" ||
-                      element.tagName === "TEXTAREA"
-                    ) {
-                      (
-                        element as HTMLInputElement | HTMLTextAreaElement
-                      ).value = item.value;
-                      // Dispatch input and change events to simulate user interaction
-                      element.dispatchEvent(
-                        new Event("input", { bubbles: true })
+                    // 1. Try by ID (if provided in item.id or item.attributes.id)
+                    const effectiveId = itemId || attributes?.id;
+                    if (effectiveId) {
+                      element = document.getElementById(effectiveId);
+                    }
+
+                    // 2. Try by name (if element not found and name is present)
+                    if (!element && name) {
+                      element = document.querySelector(`[name="${name}"]`);
+                    }
+
+                    // 3. Try by a combination of attributes for more specific targeting if needed
+                    // This can be expanded based on common patterns
+                    if (!element && attributes) {
+                      let selector = item.tag || ""; // Start with tag if available
+                      for (const [key, val] of Object.entries(attributes)) {
+                        if (key !== "id" && key !== "name") {
+                          // id and name already tried
+                          selector += `[${key}="${val}"]`;
+                        }
+                      }
+                      if (selector && selector !== item.tag) {
+                        // only query if attributes were added
+                        try {
+                          element = document.querySelector(selector);
+                        } catch (e) {
+                          console.warn(
+                            "Error with complex selector:",
+                            selector,
+                            e
+                          );
+                        }
+                      }
+                    }
+
+                    // 4. Try by label text (if element still not found and label is present)
+                    if (!element && label) {
+                      const labels = Array.from(
+                        document.querySelectorAll("label")
                       );
-                      element.dispatchEvent(
-                        new Event("change", { bubbles: true })
+                      const matchingLabel = labels.find(
+                        (l) =>
+                          l.textContent?.trim().toLowerCase() ===
+                          label.trim().toLowerCase()
                       );
-                    } else if (element.tagName === "SELECT") {
-                      (element as HTMLSelectElement).value = item.value;
-                      element.dispatchEvent(
-                        new Event("change", { bubbles: true })
+                      if (matchingLabel) {
+                        if (matchingLabel.htmlFor) {
+                          element = document.getElementById(
+                            matchingLabel.htmlFor
+                          );
+                        } else {
+                          // Try to find an input/select/textarea as a child or sibling
+                          element = matchingLabel.querySelector(
+                            "input, select, textarea"
+                          );
+                          if (!element) {
+                            let nextSibling = matchingLabel.nextElementSibling;
+                            while (nextSibling) {
+                              if (
+                                nextSibling.matches("input, select, textarea")
+                              ) {
+                                element = nextSibling as HTMLElement;
+                                break;
+                              }
+                              nextSibling = nextSibling.nextElementSibling;
+                            }
+                          }
+                        }
+                      }
+                    }
+
+                    // 5. Fallback: If still not found, try a more generic query using type and placeholder
+                    if (!element && type && placeholder) {
+                      element = document.querySelector(
+                        `${
+                          item.tag || "input"
+                        }[type="${type}"][placeholder="${placeholder}"]`
                       );
                     }
-                    // Add handling for other element types like checkboxes, radio buttons if needed
-                  }
-                });
+                    if (!element && type && !placeholder && name) {
+                      // If placeholder is empty but name exists
+                      element = document.querySelector(
+                        `${item.tag || "input"}[type="${type}"][name="${name}"]`
+                      );
+                    }
+
+                    if (element && value !== undefined && value !== null) {
+                      const tagName = element.tagName.toLowerCase();
+                      const inputType = (
+                        element as HTMLInputElement
+                      ).type?.toLowerCase();
+
+                      if (tagName === "input") {
+                        switch (inputType) {
+                          case "checkbox":
+                            (element as HTMLInputElement).checked = [
+                              "true",
+                              "checked",
+                              "on",
+                              "yes",
+                              1,
+                            ].includes(String(value).toLowerCase());
+                            break;
+                          case "radio":
+                            // For radio buttons, we need to find the specific radio button with the matching value within its group
+                            if (name) {
+                              const radioToSelect = document.querySelector(
+                                `input[type="radio"][name="${name}"][value="${value}"]`
+                              ) as HTMLInputElement;
+                              if (radioToSelect) radioToSelect.checked = true;
+                            } else {
+                              // if no name, assume this is the one if value matches
+                              if (
+                                (element as HTMLInputElement).value ===
+                                String(value)
+                              ) {
+                                (element as HTMLInputElement).checked = true;
+                              }
+                            }
+                            break;
+                          case "file":
+                            console.warn(
+                              "File input filling is not supported for security reasons."
+                            );
+                            break;
+                          default: // text, email, password, number, date, etc.
+                            (element as HTMLInputElement).value = String(value);
+                        }
+                      } else if (
+                        tagName === "textarea" ||
+                        tagName === "select"
+                      ) {
+                        (
+                          element as HTMLTextAreaElement | HTMLSelectElement
+                        ).value = String(value);
+                      }
+
+                      // Dispatch events to simulate user interaction and trigger any attached listeners
+                      ["input", "change", "blur"].forEach((eventType) => {
+                        element!.dispatchEvent(
+                          new Event(eventType, {
+                            bubbles: true,
+                            cancelable: true,
+                          })
+                        );
+                      });
+                      element.style.backgroundColor = "#e6ffe6"; // Highlight filled field
+                    }
+
+                    // Handle button clicks if status is 'click' or similar
+                    if (
+                      element &&
+                      element.tagName.toLowerCase() === "button" &&
+                      ((item as any).status === "click" ||
+                        (type === "submit" &&
+                          (item as any).status !== "waiting"))
+                    ) {
+                      if (
+                        (element as HTMLButtonElement).type === "submit" &&
+                        (item as any).status !== "waiting_for_submit"
+                      ) {
+                        console.log(
+                          `Clicking button: ${label || name || itemId}`
+                        );
+                        (element as HTMLButtonElement).click();
+                      }
+                    }
+                  });
+                }
               },
-              args: [result.data.filledForm as ExtractedElement[]],
+              args: [result as { status: string; fields: ExtractedElement[] }], // Pass the whole AI response
             });
           }
         });
