@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useCallback, useContext } from "react";
 import { Button } from "@/components/ui/button";
-import HtmlExtractionCard from "@/components/page/home/HtmlExtractionCard";
-import StructuredDataCard from "@/components/page/home/StructuredDataCard";
-import FormInputCard from "@/components/page/home/FormInputCard";
-import AiResponseCard from "@/components/page/home/AiResponseCard";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Label } from "@/components/ui/label"; // Assuming you have a Label component
+import { Textarea } from "@/components/ui/textarea"; // Assuming you have a Textarea component
+import { AuthContext } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { AuthContext } from "@/contexts/AuthContext"; // Import AuthContext
+import React, { useContext, useState } from "react";
+// import { Loader2 } from "lucide-react"; // For spinner - Remove this line
+import LoaderIcon from "@/assets/icons/LoaderIcon"; // Add this line
+
+// Keep ExtractedElement if it's used by the structuring logic and AI response
 interface ExtractedElement {
   tag: string;
   attributes?: { [key: string]: string };
@@ -16,159 +17,31 @@ interface ExtractedElement {
   placeholder?: string;
   label?: string;
   text: string | null;
-  value?: string;
+  value?: string; // Current value from the page
+  required?: boolean; // Added as per requirements
+  // Add other fields if your AI or structuring logic needs them
+}
+
+// Interface for the AI's response (filled form structure)
+interface AiFilledFormStructure {
+  status: string; // e.g., 'success', 'partial', 'error'
+  fields: ExtractedElement[]; // Fields with 'value' populated by AI
+  // Potentially add a summary message from AI if provided
 }
 
 const Home: React.FC = () => {
-  const [htmlContent, setHtmlContent] = useState<string | null>(null);
-  const [structuredData, setStructuredData] = useState<
-    ExtractedElement[] | null
-  >(null);
   const [formDataInput, setFormDataInput] = useState<string>("");
-  const [aiResponse, setAiResponse] = useState<any | null>(null);
-  const [isLoadingHtml, setIsLoadingHtml] = useState<boolean>(false);
-  const [isLoadingStructuredData, setIsLoadingStructuredData] =
-    useState<boolean>(false);
-  const [isLoadingAiResponse, setIsLoadingAiResponse] =
-    useState<boolean>(false);
+  const [isAutomating, setIsAutomating] = useState<boolean>(false);
   const { toast } = useToast();
   const auth = useContext(AuthContext);
 
-  const extractHtml = useCallback(() => {
-    if (chrome && chrome.tabs) {
-      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-        const activeTab = tabs[0];
-        if (activeTab && activeTab.id) {
-          setIsLoadingHtml(true);
-          chrome.scripting.executeScript(
-            {
-              target: { tabId: activeTab.id },
-              func: () => document.documentElement.outerHTML,
-            },
-            (injectionResults) => {
-              setIsLoadingHtml(false);
-              if (chrome.runtime.lastError) {
-                console.error(
-                  "Error injecting script:",
-                  chrome.runtime.lastError.message
-                );
-                toast({
-                  title: "Error",
-                  description: `Failed to extract HTML: ${chrome.runtime.lastError.message}`,
-                  variant: "destructive",
-                });
-                setHtmlContent(null);
-                return;
-              }
-              if (
-                injectionResults &&
-                injectionResults[0] &&
-                injectionResults[0].result
-              ) {
-                setHtmlContent(injectionResults[0].result as string);
-              } else {
-                setHtmlContent(null);
-                toast({
-                  title: "Error",
-                  description: "Could not extract HTML from the page.",
-                  variant: "destructive",
-                });
-              }
-            }
-          );
-        } else {
-          toast({
-            title: "Error",
-            description: "No active tab found.",
-            variant: "destructive",
-          });
-        }
-      });
-    } else {
-      // Fallback for development when not in extension environment
-      console.warn("Chrome tabs API not available. Using mock HTML.");
-      setHtmlContent(
-        '<html><body><h1>Mock Content</h1><input type="text" name="mock_field" /><button>Submit</button></body></html>'
-      );
-      toast({
-        title: "Dev Mode",
-        description: "Chrome tabs API not available. Loaded mock HTML.",
-      });
-    }
-  }, [toast]);
-
-  useEffect(() => {
-    // Automatically extract HTML when the component mounts
-    extractHtml();
-  }, [extractHtml]);
-
-  const structureData = useCallback(async () => {
-    if (!htmlContent) {
-      toast({
-        title: "Error",
-        description: "No HTML content to structure.",
-        variant: "destructive",
-      });
-      return;
-    }
-    setIsLoadingStructuredData(true);
-    try {
-      // In a real scenario, you might send this to a backend or use a client-side library for structuring.
-      // For now, let's simulate a simple structuring process.
-      // This is a placeholder. You'll need a proper HTML parsing and structuring logic here.
-      // For example, using DOMParser and selecting relevant elements.
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(htmlContent, "text/html");
-      const inputs = Array.from(
-        doc.querySelectorAll("input, textarea, select, button")
-      );
-      const data: ExtractedElement[] = inputs.map((el) => ({
-        tag: el.tagName.toLowerCase(),
-        attributes: Array.from(el.attributes).reduce((acc, attr) => {
-          acc[attr.name] = attr.value;
-          return acc;
-        }, {} as { [key: string]: string }),
-        id: el.id || undefined,
-        name: (el as HTMLInputElement).name || undefined,
-        type: (el as HTMLInputElement).type || undefined,
-        placeholder: (el as HTMLInputElement).placeholder || undefined,
-        label:
-          el.closest("label")?.textContent?.trim() ||
-          doc.querySelector(`label[for='${el.id}']`)?.textContent?.trim() ||
-          undefined,
-        text: el.textContent?.trim() || null,
-      }));
-      setStructuredData(data);
-      toast({
-        title: "Success",
-        description: "HTML structured successfully (simulated).",
-      });
-    } catch (error) {
-      console.error("Error structuring data:", error);
-      toast({
-        title: "Error",
-        description: "Failed to structure HTML.",
-        variant: "destructive",
-      });
-      setStructuredData(null);
-    }
-    setIsLoadingStructuredData(false);
-  }, [htmlContent, toast]);
-
-  const handleFillForm = async () => {
-    if (!structuredData) {
-      toast({
-        title: "Error",
-        description: "No structured data available to fill.",
-        variant: "destructive",
-      });
-      return;
-    }
+  // Combined function to handle the entire automation flow
+  const handleRunAutomation = async () => {
     if (!formDataInput.trim()) {
       toast({
-        title: "Warning",
-        description: "Please provide input for the AI.",
-        variant: "default",
+        title: "Input Required",
+        description: "Please describe what the form should do.",
+        variant: "destructive",
       });
       return;
     }
@@ -179,74 +52,189 @@ const Home: React.FC = () => {
         description: "You are not logged in or your session has expired.",
         variant: "destructive",
       });
-      setIsLoadingAiResponse(false);
       return;
     }
 
-    setIsLoadingAiResponse(true);
-    setAiResponse(null);
+    setIsAutomating(true);
 
     try {
-      const response = await fetch(
+      // 1. HTML Extraction
+      const htmlContent = await new Promise<string | null>(
+        (resolve, reject) => {
+          if (chrome && chrome.tabs) {
+            chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+              const activeTab = tabs[0];
+              if (activeTab && activeTab.id) {
+                chrome.scripting.executeScript(
+                  {
+                    target: { tabId: activeTab.id },
+                    func: () => document.documentElement.outerHTML,
+                  },
+                  (injectionResults) => {
+                    if (chrome.runtime.lastError) {
+                      console.error(
+                        "Error injecting script for HTML extraction:",
+                        chrome.runtime.lastError.message
+                      );
+                      reject(
+                        new Error(
+                          `Failed to extract HTML: ${chrome.runtime.lastError.message}`
+                        )
+                      );
+                      return;
+                    }
+                    if (
+                      injectionResults &&
+                      injectionResults[0] &&
+                      injectionResults[0].result
+                    ) {
+                      resolve(injectionResults[0].result as string);
+                    } else {
+                      reject(
+                        new Error("Could not extract HTML from the page.")
+                      );
+                    }
+                  }
+                );
+              } else {
+                reject(new Error("No active tab found."));
+              }
+            });
+          } else {
+            // Fallback for development (optional, or reject)
+            console.warn(
+              "Chrome tabs API not available. HTML extraction skipped in dev."
+            );
+            resolve(
+              '<html><body><input name="dev_field" type="text" value="dev value"/></body></html>'
+            ); // Mock HTML for dev
+          }
+        }
+      );
+
+      if (!htmlContent) {
+        toast({
+          title: "Error",
+          description: "HTML content could not be extracted.",
+          variant: "destructive",
+        });
+        setIsAutomating(false);
+        return;
+      }
+
+      // 2. Structuring Data
+      // This logic should be robust and match the ExtractedElement interface, including 'required'
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(htmlContent, "text/html");
+      const formElements = Array.from(
+        doc.querySelectorAll("input, textarea, select, button")
+      );
+      const structuredPageData: ExtractedElement[] = formElements.map(
+        (el: Element) => {
+          const inputElement = el as
+            | HTMLInputElement
+            | HTMLTextAreaElement
+            | HTMLSelectElement
+            | HTMLButtonElement;
+          let labelText: string | undefined = undefined;
+          if (inputElement.id) {
+            const labelFor = doc.querySelector(
+              `label[for='${inputElement.id}']`
+            );
+            if (labelFor) labelText = labelFor.textContent?.trim();
+          }
+          if (!labelText) {
+            labelText = inputElement.closest("label")?.textContent?.trim();
+          }
+
+          return {
+            tag: inputElement.tagName.toLowerCase(),
+            attributes: Array.from(inputElement.attributes).reduce(
+              (acc, attr) => {
+                acc[attr.name] = attr.value;
+                return acc;
+              },
+              {} as { [key: string]: string }
+            ),
+            id: inputElement.id || undefined,
+            name: (inputElement as HTMLInputElement).name || undefined,
+            type:
+              (inputElement as HTMLInputElement).type?.toLowerCase() ||
+              undefined,
+            placeholder:
+              (inputElement as HTMLInputElement).placeholder || undefined,
+            label: labelText,
+            text: inputElement.textContent?.trim() || null,
+            value: (inputElement as HTMLInputElement).value || undefined, // Current value from page
+            required: (inputElement as HTMLInputElement).required || undefined,
+          };
+        }
+      );
+
+      // 3. AI Request
+      const apiResponse = await fetch(
         "http://localhost:3001/api/requests/openai/map-form",
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${auth.token}`, // Use the token from AuthContext
+            Authorization: `Bearer ${auth.token}`,
           },
           body: JSON.stringify({
-            // Ensure the key matches what the backend expects for pageStructure.formStructure
-            // Based on your server/routes/requests.js, it expects `pageStructure` which contains `formStructure`
-            pageStructure: { formStructure: structuredData },
+            pageStructure: { formStructure: structuredPageData }, // Ensure this matches backend
             userInput: formDataInput,
           }),
         }
       );
 
-      if (!response.ok) {
+      if (!apiResponse.ok) {
         let errorData;
         try {
-          errorData = await response.json();
-        } catch (e: any) {
-          errorData = { message: "Failed to parse error response.", e };
+          errorData = await apiResponse.json();
+        } catch (e) {
+          errorData = {
+            message: "Failed to parse error response from AI service.",
+            e,
+          };
         }
-        // Log the full error response from the server for more details
-        console.error("API Error Data:", errorData);
+        console.error("AI API Error Data:", errorData);
         throw new Error(
-          `API request failed with status ${response.status}: ${
-            errorData.message || "Unknown error"
+          `AI service request failed: ${
+            errorData.message || apiResponse.statusText
           }`
         );
       }
 
-      const result = await response.json(); // This is the FormStructure like object
-      setAiResponse(result);
-      toast({ title: "Success", description: "Form data processed by AI." });
+      const aiResult: AiFilledFormStructure = await apiResponse.json();
+      // Ensure aiResult matches AiFilledFormStructure, especially aiResult.fields
 
+      // 4. Autofill Execution
       if (
-        result &&
-        result.fields &&
-        Array.isArray(result.fields) &&
+        aiResult &&
+        aiResult.fields &&
+        Array.isArray(aiResult.fields) &&
         chrome &&
         chrome.tabs
       ) {
         chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
           const activeTab = tabs[0];
           if (activeTab && activeTab.id) {
-            chrome.scripting.executeScript({
+            chrome.scripting.executeScript<[AiFilledFormStructure], void>({
               target: { tabId: activeTab.id },
-              func: (formStructure: {
-                status: string;
-                fields: ExtractedElement[];
-              }) => {
+              func: (formToFill) => {
+                // ... (Keep the robust field filling script from previous steps here)
+                // ... It should use formToFill.fields
+                // ... It should include try/catch for each field, console.warn for errors
+                // ... And the summary logging at the end.
+                // For brevity, I'm not repeating the whole script, but it's the one we refined.
+                console.log("Form filling script executed with:", formToFill);
                 let fieldsProcessed = 0;
                 let fieldsFilledSuccessfully = 0;
                 let fieldsSkipped = 0;
                 const warnings: string[] = [];
 
-                if (formStructure && formStructure.fields) {
-                  formStructure.fields.forEach((item) => {
+                if (formToFill && formToFill.fields) {
+                  formToFill.fields.forEach((item) => {
                     fieldsProcessed++;
                     try {
                       let element: HTMLElement | null = null;
@@ -266,7 +254,7 @@ const Home: React.FC = () => {
                         label || "N/A"
                       }, ID: ${itemId || attributes?.id || "N/A"})`;
 
-                      // Element finding logic
+                      // Element finding logic (ensure this is the robust version)
                       try {
                         const effectiveId = itemId || attributes?.id;
                         if (effectiveId) {
@@ -275,6 +263,7 @@ const Home: React.FC = () => {
                         if (!element && name) {
                           element = document.querySelector(`[name="${name}"]`);
                         }
+                        // ... (include all other finding strategies: attributes, label, placeholder etc.)
                         if (!element && attributes) {
                           let selector = tag || "";
                           for (const [key, val] of Object.entries(attributes)) {
@@ -336,7 +325,7 @@ const Home: React.FC = () => {
                         console.warn(warningMsg);
                         warnings.push(warningMsg);
                         fieldsSkipped++;
-                        return; // Skip to next item in forEach
+                        return;
                       }
 
                       if (!element) {
@@ -344,7 +333,7 @@ const Home: React.FC = () => {
                         console.warn(warningMsg);
                         warnings.push(warningMsg);
                         fieldsSkipped++;
-                        return; // Skip to next item in forEach
+                        return;
                       }
 
                       if (
@@ -372,14 +361,15 @@ const Home: React.FC = () => {
                         return;
                       }
 
-                      if (value !== undefined && value !== null) {
-                        const tagName = element.tagName.toLowerCase();
-                        const inputType = (
-                          element as HTMLInputElement
-                        ).type?.toLowerCase();
+                      const tagName = element.tagName.toLowerCase();
+                      const currentElementType = (
+                        element as HTMLInputElement
+                      ).type?.toLowerCase(); // Renamed to avoid conflict
 
+                      if (value !== undefined && value !== null) {
+                        // AI provided a value to set
                         if (tagName === "input") {
-                          switch (inputType) {
+                          switch (currentElementType) {
                             case "checkbox": {
                               (element as HTMLInputElement).checked = [
                                 "true",
@@ -469,154 +459,117 @@ const Home: React.FC = () => {
                             })
                           );
                         });
-                        element.style.backgroundColor = "#e6ffe6";
+                        element.style.backgroundColor = "#e6ffe6"; // Highlight filled field
                         fieldsFilledSuccessfully++;
-                      } else {
-                        // Value is null or undefined, consider it a skip unless it's a button for clicking
-                        if (
-                          !(
-                            element.tagName.toLowerCase() === "button" &&
-                            ((item as any).status === "click" ||
-                              (type === "submit" &&
-                                (item as any).status !== "waiting"))
-                          )
-                        ) {
-                          const warningMsg = `${fieldIdentifier}: No value provided to fill. Skipping.`;
-                          console.warn(warningMsg);
-                          warnings.push(warningMsg);
-                          fieldsSkipped++;
-                          return;
-                        }
-                      }
-
-                      if (
-                        element &&
-                        element.tagName.toLowerCase() === "button" &&
+                      } else if (
+                        tagName === "button" &&
                         ((item as any).status === "click" ||
                           (type === "submit" &&
                             (item as any).status !== "waiting"))
                       ) {
-                        if (
-                          (element as HTMLButtonElement).type === "submit" &&
-                          (item as any).status !== "waiting_for_submit"
-                        ) {
-                          console.log(
-                            `Attempting to click button: ${fieldIdentifier}`
-                          );
-                          (element as HTMLButtonElement).click();
-                          fieldsFilledSuccessfully++; // Count button click as a successful action
-                        } else if (
-                          (element as HTMLButtonElement).type !== "submit"
-                        ) {
-                          console.log(
-                            `Attempting to click button: ${fieldIdentifier}`
-                          );
-                          (element as HTMLButtonElement).click();
-                          fieldsFilledSuccessfully++;
-                        }
+                        // Handle button clicks even if value is null/undefined, based on AI's 'status'
+                        (element as HTMLButtonElement).click();
+                        console.log(`${fieldIdentifier}: Clicked button.`);
+                        element.style.outline = "2px solid #4CAF50"; // Highlight clicked button
+                        fieldsFilledSuccessfully++; // Count actions as success
+                      } else {
+                        // Value is null or undefined, and it's not a button to click
+                        const warningMsg = `${fieldIdentifier}: No value provided by AI to fill and not a button action. Skipping.`;
+                        console.warn(warningMsg);
+                        warnings.push(warningMsg);
+                        fieldsSkipped++;
+                        return;
                       }
                     } catch (e: any) {
-                      const fieldIdentifier = `Field (Type: ${
+                      const itemIdentifier = `Field (Type: ${
                         item.type || "N/A"
                       }, Name: ${item.name || "N/A"}, Label: ${
                         item.label || "N/A"
-                      })`;
-                      const warningMsg = `${fieldIdentifier}: Unhandled error during processing: ${e.message}. Skipping.`;
-                      console.warn(warningMsg);
-                      warnings.push(warningMsg);
+                      }, ID: ${item.id || item.attributes?.id || "N/A"})`;
+                      const errorMsg = `${itemIdentifier}: Error processing field: ${e.message}`;
+                      console.warn(errorMsg);
+                      warnings.push(errorMsg);
                       fieldsSkipped++;
                     }
                   });
                 }
-                // Summary Logging
-                console.log(`--- Autofill Summary ---`);
-                console.log(`✅ Total Fields Processed: ${fieldsProcessed}`);
+                // Summary Log
+                console.log("--- Autofill Summary ---");
+                console.log(`Total fields processed: ${fieldsProcessed}`);
                 console.log(
-                  `👍 Fields Filled/Actioned Successfully: ${fieldsFilledSuccessfully}`
+                  `Successfully filled/actioned: ${fieldsFilledSuccessfully}`
                 );
-                console.log(`⚠️ Fields Skipped (Warnings): ${fieldsSkipped}`);
+                console.log(`Skipped fields: ${fieldsSkipped}`);
                 if (warnings.length > 0) {
-                  console.warn("Detailed Warnings:");
-                  warnings.forEach((w) => console.warn(w));
+                  console.warn("Warnings encountered:");
+                  warnings.forEach((w) => console.warn(`- ${w}`));
                 }
-                console.log(`----------------------`);
+                // Potentially return a summary object to the main extension page if needed
+                // return { fieldsProcessed, fieldsFilledSuccessfully, fieldsSkipped, warnings };
               },
-              args: [result as { status: string; fields: ExtractedElement[] }],
+              args: [aiResult],
             });
+            toast({
+              title: "Automation Complete",
+              description: "Form filled successfully!",
+            });
+          } else {
+            throw new Error("Could not find active tab for script injection.");
           }
         });
+      } else {
+        toast({
+          title: "AI Response Issue",
+          description: "AI did not return valid field data to fill.",
+          variant: "default",
+        });
       }
-    } catch (error) {
-      console.error("Error filling form with AI:", error);
-      const errorMessage =
-        error instanceof Error ? error.message : "An unknown error occurred.";
-      setAiResponse({ error: errorMessage });
+    } catch (error: any) {
+      console.error("Automation Error:", error);
       toast({
-        title: "Error",
-        description: `AI processing failed: ${errorMessage}`,
+        title: "Automation Failed",
+        description:
+          error.message || "An unexpected error occurred during automation.",
         variant: "destructive",
       });
+    } finally {
+      setIsAutomating(false);
     }
-    setIsLoadingAiResponse(false);
   };
 
   return (
-    <div className="container mx-auto p-4 space-y-6">
-      <h1 className="text-3xl font-bold text-center mb-8">
-        AI Form Filler Extension
-      </h1>
-
-      <HtmlExtractionCard
-        htmlContent={htmlContent}
-        extractHtml={extractHtml}
-        isLoading={isLoadingHtml}
-        structureData={structureData}
-        canStructure={!!htmlContent}
-      />
-
-      <StructuredDataCard
-        structuredData={structuredData}
-        isLoading={isLoadingStructuredData}
-      />
-
-      <FormInputCard
-        formDataInput={formDataInput}
-        setFormDataInput={setFormDataInput}
-        handleFillForm={handleFillForm}
-        isLoadingAiResponse={isLoadingAiResponse}
-        structuredData={structuredData}
-      />
-
-      <AiResponseCard
-        aiResponse={aiResponse}
-        isLoadingAiResponse={isLoadingAiResponse}
-      />
-
-      {/* For debugging or direct interaction with Chrome APIs if needed */}
-      {process.env.NODE_ENV === "development" && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Dev Tools</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <Button
-              onClick={() => {
-                if (chrome && chrome.runtime && chrome.runtime.getURL) {
-                  console.log("Extension base URL:", chrome.runtime.getURL(""));
-                } else {
-                  console.log("Chrome runtime API not available.");
-                }
-              }}
-            >
-              Log Extension URL
-            </Button>
-            <p className="text-xs text-muted-foreground">
-              Ensure you are running this in an unpacked extension environment
-              for Chrome APIs to work.
-            </p>
-          </CardContent>
-        </Card>
-      )}
+    <div className="size-full flex flex-center relative">
+      <div className="fixed bottom-24 w-full px-4 flex flex-col  ">
+        <div className="flex flex-row justify-between items-center">
+          <Label htmlFor="formDataInput" className=" font-semibold">
+            Your Instructions:
+          </Label>{" "}
+          <Button
+            onClick={handleRunAutomation}
+            disabled={isAutomating || !auth?.token}
+            className="flex flex-center px-3 border border-input text-sm hover:bg-black  text-white  bg-black min-w-32"
+          >
+            {isAutomating ? (
+              <>
+                <LoaderIcon className="h-5 w-5 animate-spin" />
+              </>
+            ) : (
+              "Automate ⚡"
+            )}
+          </Button>
+        </div>
+        <div className="relative p-2 border mt-1 rounded-2xl ">
+          <Textarea
+            id="formDataInput"
+            value={formDataInput}
+            onChange={(e) => setFormDataInput(e.target.value)}
+            placeholder="e.g., 'Fill my name as John Doe, email as john.doe@example.com, and select 'Option 2' for preferences.'"
+            rows={6}
+            className="text-sm border-none overflow-hidden"
+            disabled={isAutomating}
+          />
+        </div>
+      </div>
     </div>
   );
 };

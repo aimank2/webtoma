@@ -17,7 +17,7 @@ function SignIn() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   // loginError will now be handled by useMutation's error state
-  // const [loginError, setLoginError] = useState(""); 
+  // const [loginError, setLoginError] = useState("");
   // loadingLogin will be handled by useMutation's isLoading state
   // const [loadingLogin, setLoadingLogin] = useState(false);
 
@@ -28,26 +28,27 @@ function SignIn() {
   }, [isAuthenticated, authIsLoading, navigate]);
 
   const loginMutation = useMutation({
-    mutationFn: (credentials: any) => 
-      api.post("/auth/login", credentials),
+    mutationFn: (credentials: any) => api.post("/auth/login", credentials),
     onSuccess: (data) => {
       // Assuming data.data contains token and user from your axios response interceptor
       // If your api.ts already processes the response to return { token, user }, then data directly has it.
       // Adjust based on your actual api response structure after interceptors.
       const { token, user } = data.data; // Or simply data if interceptor returns the core data
-      login(token, user); 
+      login(token, user);
       // Navigation is handled by useEffect, or you can navigate here explicitly if preferred
       // navigate(ROUTES.HOME);
     },
     onError: (error: any) => {
       // error.response.data.message should contain the error message from backend
       // Or adjust based on how your api errors are structured
-      const errorMessage = error.response?.data?.message || error.message || "An unknown error occurred during login.";
+      const errorMessage =
+        error.response?.data?.message ||
+        error.message ||
+        "An unknown error occurred during login.";
       // You might want to set this to a state to display in the UI
       console.error("Login error:", errorMessage);
       // For displaying the error, you'll need a state variable if you remove loginError
       // For now, logging it. Consider adding a state for UI feedback.
-      alert(errorMessage); // Simple alert, replace with a proper UI notification
     },
   });
 
@@ -74,7 +75,7 @@ function SignIn() {
   }
 
   return (
-    <div className="relative flex flex-col items-center justify-center size-full">
+    <div className="relative flex flex-col items-center justify-center size-full ">
       <div className="w-full  flex flex-col flex-center">
         <div className="text-center mb-8">
           <div className="text-4xl font-bold bg-clip-text bg-gradient-to-r from-orange-500 to-purple-400 text-transparent">
@@ -114,7 +115,9 @@ function SignIn() {
           />
           {loginMutation.isError && (
             <p className="text-red-500 text-xs text-center">
-              {loginMutation.error.response?.data?.message || loginMutation.error.message || "Login failed"}
+              {loginMutation.error.response?.data?.message ||
+                loginMutation.error.message ||
+                "Login failed"}
             </p>
           )}
           <Button
@@ -122,7 +125,8 @@ function SignIn() {
             disabled={loginMutation.isPending || authIsLoading} // Use mutation's loading state
             className="w-full py-3 text-base"
           >
-            {loginMutation.isPending ? "Logging In..." : "Login"} {/* Use mutation's loading state */}
+            {loginMutation.isPending ? "Logging In..." : "Login"}{" "}
+            {/* Use mutation's loading state */}
           </Button>
         </form>
         <div className="text-center mt-6">
