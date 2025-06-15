@@ -6,6 +6,8 @@ import { useToast } from "@/hooks/use-toast";
 import React, { useContext, useState } from "react";
 // import { Loader2 } from "lucide-react"; // For spinner - Remove this line
 import LoaderIcon from "@/assets/icons/LoaderIcon"; // Add this line
+import { AnimatedList } from "@/components/magicui/animated-list";
+import NotificationItem from "@/components/page/home/NotificationItem";
 
 // Keep ExtractedElement if it's used by the structuring logic and AI response
 interface ExtractedElement {
@@ -536,9 +538,103 @@ const Home: React.FC = () => {
       setIsAutomating(false);
     }
   };
+  const notifications = [
+    {
+      name: "Payment received",
+      description: "Magic UI",
+      time: "15m ago",
 
+      icon: "💸",
+      color: "#00C9A7",
+    },
+    {
+      name: "User signed up",
+      description: "Magic UI",
+      time: "10m ago",
+      icon: "👤",
+      color: "#FFB800",
+    },
+    {
+      name: "New message",
+      description: "Magic UI",
+      time: "5m ago",
+      icon: "💬",
+      color: "#FF3D71",
+    },
+    {
+      name: "New event",
+      description: "Magic UI",
+      time: "2m ago",
+      icon: "🗞️",
+      color: "#1E86FF",
+    },
+    {
+      name: "Payment received",
+      description: "Magic UI",
+      time: "15m ago",
+
+      icon: "💸",
+      color: "#00C9A7",
+    },
+    {
+      name: "User signed up",
+      description: "Magic UI",
+      time: "10m ago",
+      icon: "👤",
+      color: "#FFB800",
+    },
+    {
+      name: "New message",
+      description: "Magic UI",
+      time: "5m ago",
+      icon: "💬",
+      color: "#FF3D71",
+    },
+    {
+      name: "New event",
+      description: "Magic UI",
+      time: "2m ago",
+      icon: "🗞️",
+      color: "#1E86FF",
+    },
+    {
+      name: "Payment received",
+      description: "Magic UI",
+      time: "15m ago",
+
+      icon: "💸",
+      color: "#00C9A7",
+    },
+    {
+      name: "User signed up",
+      description: "Magic UI",
+      time: "10m ago",
+      icon: "👤",
+      color: "#FFB800",
+    },
+    {
+      name: "New message",
+      description: "Magic UI",
+      time: "5m ago",
+      icon: "💬",
+      color: "#FF3D71",
+    },
+    {
+      name: "New event",
+      description: "Magic UI",
+      time: "2m ago",
+      icon: "🗞️",
+      color: "#1E86FF",
+    },
+  ];
   return (
     <div className="size-full flex flex-center relative">
+      <AnimatedList className="mt-14 overflow-y-auto overflow-x-hidden h-[55vh] hide-scrollbar">
+        {notifications.map((notification, index) => (
+          <NotificationItem key={index} {...notification} />
+        ))}
+      </AnimatedList>
+
       <div className="fixed bottom-24 w-full px-4 flex flex-col  ">
         <div className="flex flex-row justify-between items-center">
           <Label htmlFor="formDataInput" className=" font-semibold">
