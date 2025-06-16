@@ -7,7 +7,16 @@ import React, { useContext, useState } from "react";
 // import { Loader2 } from "lucide-react"; // For spinner - Remove this line
 import LoaderIcon from "@/assets/icons/LoaderIcon"; // Add this line
 import { AnimatedList } from "@/components/magicui/animated-list";
-import NotificationItem from "@/components/page/home/NotificationItem";
+import NotificationItem, {
+  Item as NotificationItemProps,
+} from "@/components/page/home/NotificationItem"; // Adjusted import for Item props
+import {
+  AUTOMATION_ERROR_NOTIFICATION,
+  FORM_FILLING_NOTIFICATIONS,
+  AI_RESPONSE_RECEIVED_NOTIFICATION,
+  INJECTING_FORM_VALUES_NOTIFICATION,
+  FORM_AUTOMATION_SUCCESS_NOTIFICATION, // Added this import
+} from "@/constants/constants";
 
 // Keep ExtractedElement if it's used by the structuring logic and AI response
 interface ExtractedElement {
@@ -34,8 +43,17 @@ interface AiFilledFormStructure {
 const Home: React.FC = () => {
   const [formDataInput, setFormDataInput] = useState<string>("");
   const [isAutomating, setIsAutomating] = useState<boolean>(false);
+  const [displayedNotifications, setDisplayedNotifications] = useState<
+    NotificationItemProps[]
+  >([]);
   const { toast } = useToast();
   const auth = useContext(AuthContext);
+  const notificationTimeouts = React.useRef<NodeJS.Timeout[]>([]);
+
+  const clearAllNotificationTimeouts = () => {
+    notificationTimeouts.current.forEach(clearTimeout);
+    notificationTimeouts.current = [];
+  };
 
   // Combined function to handle the entire automation flow
   const handleRunAutomation = async () => {
@@ -58,9 +76,29 @@ const Home: React.FC = () => {
     }
 
     setIsAutomating(true);
+    setDisplayedNotifications([]); // Clear previous notifications
+    clearAllNotificationTimeouts(); // Clear any lingering timeouts
+
+    let currentDelay = 0;
+    const initialNotifications = FORM_FILLING_NOTIFICATIONS;
+
+    // Schedule initial notifications up to 'WAITING FOR AI'
+    initialNotifications.forEach((notification, index) => {
+      const delay = notification.time === "0ms" ? 0 :
+                    parseInt(notification.time.replace("+", "").replace("ms", ""), 10) -
+                    (index > 0 ? parseInt(initialNotifications[index - 1].time.replace("+", "").replace("ms", ""), 10) : 0);
+      currentDelay += delay;
+
+      const timeoutId = setTimeout(() => {
+        setDisplayedNotifications((prev) => [...prev, notification]);
+      }, currentDelay);
+      notificationTimeouts.current.push(timeoutId);
+    });
 
     try {
       // 1. HTML Extraction
+      // Simulate delay for EXTRACTING_HTML if not covered by its own timeout logic
+      // (Assuming actual operation takes time)
       const htmlContent = await new Promise<string | null>(
         (resolve, reject) => {
           if (chrome && chrome.tabs) {
@@ -120,9 +158,16 @@ const Home: React.FC = () => {
           description: "HTML content could not be extracted.",
           variant: "destructive",
         });
+        clearAllNotificationTimeouts(); // Clear scheduled initial notifications
+        setDisplayedNotifications((prev) => [
+          ...prev.filter(n => n.name !== "WAITING FOR AI"), // Remove waiting if present
+          AUTOMATION_ERROR_NOTIFICATION,
+        ]);
         setIsAutomating(false);
         return;
       }
+      // If EXTRACTING_HTML was the first, it's already displayed by timeout.
+      // If it's very fast, the timeout might still be pending or just fired.
 
       // 2. Structuring Data
       // This logic should be robust and match the ExtractedElement interface, including 'required'
@@ -174,6 +219,7 @@ const Home: React.FC = () => {
       );
 
       // 3. AI Request
+      // SENDING_TO_AI notification is handled by its timeout
       const apiResponse = await fetch(
         "http://localhost:3001/api/requests/openai/map-form",
         {
@@ -210,6 +256,29 @@ const Home: React.FC = () => {
       const aiResult: AiFilledFormStructure = await apiResponse.json();
       // Ensure aiResult matches AiFilledFormStructure, especially aiResult.fields
 
+      // AI Response received - Clear previous timeouts and update notifications
+      clearAllNotificationTimeouts();
+
+      // Determine notifications shown so far (up to SENDING_TO_AI)
+      const waitingForAiIndex = initialNotifications.findIndex(n => n.name === "WAITING FOR AI");
+      const baseNotifications = waitingForAiIndex > -1 ? initialNotifications.slice(0, waitingForAiIndex) : [...initialNotifications]; 
+      // Ensure we don't include "WAITING FOR AI" if it was the last one scheduled by initial loop
+      // Or, if AI is very fast, it might not have appeared yet.
+
+      setDisplayedNotifications([
+        ...baseNotifications.filter(n => n.name !== "WAITING FOR AI"), // Ensure WAITING FOR AI is not shown
+        AI_RESPONSE_RECEIVED_NOTIFICATION,
+      ]);
+
+      // Schedule INJECTING_FORM_VALUES
+      const injectTimeoutId = setTimeout(() => {
+        setDisplayedNotifications((prev) => [
+          ...prev,
+          INJECTING_FORM_VALUES_NOTIFICATION,
+        ]);
+      }, 300); // 300ms delay
+      notificationTimeouts.current.push(injectTimeoutId);
+
       // 4. Autofill Execution
       if (
         aiResult &&
@@ -218,420 +287,220 @@ const Home: React.FC = () => {
         chrome &&
         chrome.tabs
       ) {
-        chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-          const activeTab = tabs[0];
-          if (activeTab && activeTab.id) {
-            chrome.scripting.executeScript<[AiFilledFormStructure], void>({
-              target: { tabId: activeTab.id },
-              func: (formToFill) => {
-                // ... (Keep the robust field filling script from previous steps here)
-                // ... It should use formToFill.fields
-                // ... It should include try/catch for each field, console.warn for errors
-                // ... And the summary logging at the end.
-                // For brevity, I'm not repeating the whole script, but it's the one we refined.
-                console.log("Form filling script executed with:", formToFill);
-                let fieldsProcessed = 0;
-                let fieldsFilledSuccessfully = 0;
-                let fieldsSkipped = 0;
-                const warnings: string[] = [];
+        await new Promise<void>((resolveScript, rejectScript) => {
+          chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+            const activeTab = tabs[0];
+            if (activeTab && activeTab.id) {
+              chrome.scripting.executeScript<
+                [AiFilledFormStructure],
+                void | { error?: string; success?: boolean }
+              >(
+                {
+                  target: { tabId: activeTab.id },
+                  func: (formToFill) => {
+                    // ... (Keep the robust field filling script from previous steps here)
+                    console.log("Form filling script executed with:", formToFill);
+                    let fieldsProcessed = 0;
+                    let fieldsFilledSuccessfully = 0;
+                    let fieldsSkipped = 0;
+                    const warnings: string[] = [];
+                    let scriptErrorOccurred = false;
 
-                if (formToFill && formToFill.fields) {
-                  formToFill.fields.forEach((item) => {
-                    fieldsProcessed++;
-                    try {
-                      let element: HTMLElement | null = null;
-                      const {
-                        type,
-                        name,
-                        value,
-                        placeholder,
-                        label,
-                        attributes,
-                        id: itemId,
-                        tag,
-                      } = item;
-                      const fieldIdentifier = `Field (Type: ${
-                        type || "N/A"
-                      }, Name: ${name || "N/A"}, Label: ${
-                        label || "N/A"
-                      }, ID: ${itemId || attributes?.id || "N/A"})`;
+                    if (formToFill && formToFill.fields) {
+                      formToFill.fields.forEach((item) => {
+                        fieldsProcessed++;
+                        try {
+                          let element: HTMLElement | null = null;
+                          const {
+                            type,
+                            name,
+                            value,
+                            placeholder,
+                            label,
+                            attributes,
+                            id: itemId,
+                            tag,
+                          } = item;
+                          const fieldIdentifier = `Field (Type: ${
+                            type || "N/A"
+                          }, Name: ${name || "N/A"}, ID: ${itemId || "N/A"}, Label: ${label || "N/A"})`;
 
-                      // Element finding logic (ensure this is the robust version)
-                      try {
-                        const effectiveId = itemId || attributes?.id;
-                        if (effectiveId) {
-                          element = document.getElementById(effectiveId);
-                        }
-                        if (!element && name) {
-                          element = document.querySelector(`[name="${name}"]`);
-                        }
-                        // ... (include all other finding strategies: attributes, label, placeholder etc.)
-                        if (!element && attributes) {
-                          let selector = tag || "";
-                          for (const [key, val] of Object.entries(attributes)) {
-                            if (key !== "id" && key !== "name") {
-                              selector += `[${key}="${val}"]`;
-                            }
+                          if (itemId) {
+                            element = document.getElementById(itemId);
                           }
-                          if (selector && selector !== tag) {
-                            element = document.querySelector(selector);
+                          if (!element && name) {
+                            const HACK_nameElements = Array.from(document.getElementsByName(name)) as HTMLElement[];
+                            if (HACK_nameElements.length > 0) element = HACK_nameElements[0];
                           }
-                        }
-                        if (!element && label) {
-                          const labels = Array.from(
-                            document.querySelectorAll("label")
-                          );
-                          const matchingLabel = labels.find(
-                            (l) =>
-                              l.textContent?.trim().toLowerCase() ===
-                              label.trim().toLowerCase()
-                          );
-                          if (matchingLabel) {
-                            if (matchingLabel.htmlFor)
-                              element = document.getElementById(
-                                matchingLabel.htmlFor
-                              );
-                            else
-                              element = matchingLabel.querySelector(
-                                "input, select, textarea"
-                              );
-                            if (!element) {
-                              let nextSibling =
-                                matchingLabel.nextElementSibling;
-                              while (nextSibling) {
-                                if (
-                                  nextSibling.matches("input, select, textarea")
-                                ) {
-                                  element = nextSibling as HTMLElement;
-                                  break;
-                                }
-                                nextSibling = nextSibling.nextElementSibling;
-                              }
-                            }
+                          if (!element && attributes && attributes['aria-label']) {
+                            element = document.querySelector(`[aria-label="${attributes['aria-label']}"]`);
                           }
-                        }
-                        if (!element && type && placeholder) {
-                          element = document.querySelector(
-                            `${
-                              tag || "input"
-                            }[type="${type}"][placeholder="${placeholder}"]`
-                          );
-                        }
-                        if (!element && type && !placeholder && name) {
-                          element = document.querySelector(
-                            `${tag || "input"}[type="${type}"][name="${name}"]`
-                          );
-                        }
-                      } catch (e: any) {
-                        const warningMsg = `${fieldIdentifier}: Error during element search: ${e.message}`;
-                        console.warn(warningMsg);
-                        warnings.push(warningMsg);
-                        fieldsSkipped++;
-                        return;
-                      }
-
-                      if (!element) {
-                        const warningMsg = `${fieldIdentifier}: Element not found on page.`;
-                        console.warn(warningMsg);
-                        warnings.push(warningMsg);
-                        fieldsSkipped++;
-                        return;
-                      }
-
-                      if (
-                        (
-                          element as
-                            | HTMLInputElement
-                            | HTMLTextAreaElement
-                            | HTMLSelectElement
-                        ).disabled
-                      ) {
-                        const warningMsg = `${fieldIdentifier}: Element is disabled. Skipping.`;
-                        console.warn(warningMsg);
-                        warnings.push(warningMsg);
-                        fieldsSkipped++;
-                        return;
-                      }
-                      if (
-                        (element as HTMLInputElement | HTMLTextAreaElement)
-                          .readOnly
-                      ) {
-                        const warningMsg = `${fieldIdentifier}: Element is readonly. Skipping.`;
-                        console.warn(warningMsg);
-                        warnings.push(warningMsg);
-                        fieldsSkipped++;
-                        return;
-                      }
-
-                      const tagName = element.tagName.toLowerCase();
-                      const currentElementType = (
-                        element as HTMLInputElement
-                      ).type?.toLowerCase(); // Renamed to avoid conflict
-
-                      if (value !== undefined && value !== null) {
-                        // AI provided a value to set
-                        if (tagName === "input") {
-                          switch (currentElementType) {
-                            case "checkbox": {
-                              (element as HTMLInputElement).checked = [
-                                "true",
-                                "checked",
-                                "on",
-                                "yes",
-                                1,
-                              ].includes(String(value).toLowerCase());
-                              break;
-                            }
-                            case "radio": {
-                              if (name) {
-                                const radioToSelect = document.querySelector(
-                                  `input[type="radio"][name="${name}"][value="${value}"]`
-                                ) as HTMLInputElement;
-                                if (radioToSelect) radioToSelect.checked = true;
-                                else {
-                                  const warningMsg = `${fieldIdentifier}: Radio option with value '${value}' not found.`;
-                                  console.warn(warningMsg);
-                                  warnings.push(warningMsg);
-                                  fieldsSkipped++;
-                                  return;
-                                }
+                          if (!element && label) {
+                            const labels = Array.from(document.querySelectorAll('label'));
+                            const foundLabel = labels.find(l => l.textContent?.trim().toLowerCase() === label.toLowerCase());
+                            if (foundLabel) {
+                              if (foundLabel.htmlFor) {
+                                element = document.getElementById(foundLabel.htmlFor);
                               } else {
-                                if (
-                                  (element as HTMLInputElement).value ===
-                                  String(value)
-                                )
-                                  (element as HTMLInputElement).checked = true;
-                                else {
-                                  const warningMsg = `${fieldIdentifier}: Radio (no name) value mismatch. Expected '${
-                                    (element as HTMLInputElement).value
-                                  }', got '${value}'.`;
-                                  console.warn(warningMsg);
-                                  warnings.push(warningMsg);
-                                  fieldsSkipped++;
-                                  return;
-                                }
+                                element = foundLabel.querySelector('input, textarea, select');
                               }
-                              break;
-                            }
-                            case "file": {
-                              const warningMsgFile = `${fieldIdentifier}: File input filling is not supported. Skipping.`;
-                              console.warn(warningMsgFile);
-                              warnings.push(warningMsgFile);
-                              fieldsSkipped++;
-                              return;
-                            }
-                            default: {
-                              (element as HTMLInputElement).value =
-                                String(value);
                             }
                           }
-                        } else if (
-                          tagName === "textarea" ||
-                          tagName === "select"
-                        ) {
-                          if (tagName === "select") {
-                            const selectElement = element as HTMLSelectElement;
-                            const optionExists = Array.from(
-                              selectElement.options
-                            ).some((opt) => opt.value === String(value));
-                            if (!optionExists) {
-                              const warningMsg = `${fieldIdentifier}: Option with value '${value}' not found in select. Skipping.`;
-                              console.warn(warningMsg);
-                              warnings.push(warningMsg);
-                              fieldsSkipped++;
-                              return;
-                            }
+                          if (!element && placeholder) {
+                            element = document.querySelector(`[placeholder="${placeholder}"]`);
                           }
-                          (
-                            element as HTMLTextAreaElement | HTMLSelectElement
-                          ).value = String(value);
-                        } else {
-                          const warningMsg = `${fieldIdentifier}: Unsupported element tag '${tagName}'. Skipping.`;
-                          console.warn(warningMsg);
-                          warnings.push(warningMsg);
-                          fieldsSkipped++;
-                          return;
-                        }
+                          if (!element && type && tag === 'input') {
+                             // More generic selector if others fail, could be risky
+                            const inputs = Array.from(document.querySelectorAll(`input[type="${type}"]`)) as HTMLInputElement[];
+                            // This might need a more sophisticated way to pick the right one if multiple exist
+                            if(inputs.length === 1) element = inputs[0]; 
+                          }
 
-                        ["input", "change", "blur"].forEach((eventType) => {
-                          element!.dispatchEvent(
-                            new Event(eventType, {
-                              bubbles: true,
-                              cancelable: true,
-                            })
-                          );
-                        });
-                        element.style.backgroundColor = "#e6ffe6"; // Highlight filled field
-                        fieldsFilledSuccessfully++;
-                      } else if (
-                        tagName === "button" &&
-                        ((item as any).status === "click" ||
-                          (type === "submit" &&
-                            (item as any).status !== "waiting"))
-                      ) {
-                        // Handle button clicks even if value is null/undefined, based on AI's 'status'
-                        (element as HTMLButtonElement).click();
-                        console.log(`${fieldIdentifier}: Clicked button.`);
-                        element.style.outline = "2px solid #4CAF50"; // Highlight clicked button
-                        fieldsFilledSuccessfully++; // Count actions as success
-                      } else {
-                        // Value is null or undefined, and it's not a button to click
-                        const warningMsg = `${fieldIdentifier}: No value provided by AI to fill and not a button action. Skipping.`;
-                        console.warn(warningMsg);
-                        warnings.push(warningMsg);
-                        fieldsSkipped++;
-                        return;
-                      }
-                    } catch (e: any) {
-                      const itemIdentifier = `Field (Type: ${
-                        item.type || "N/A"
-                      }, Name: ${item.name || "N/A"}, Label: ${
-                        item.label || "N/A"
-                      }, ID: ${item.id || item.attributes?.id || "N/A"})`;
-                      const errorMsg = `${itemIdentifier}: Error processing field: ${e.message}`;
-                      console.warn(errorMsg);
-                      warnings.push(errorMsg);
-                      fieldsSkipped++;
+                          if (element && value !== undefined) {
+                            const elTag = element.tagName.toLowerCase();
+                            if (elTag === 'input' || elTag === 'textarea') {
+                              (element as HTMLInputElement | HTMLTextAreaElement).value = value;
+                              fieldsFilledSuccessfully++;
+                              console.log(`Successfully filled ${fieldIdentifier} with value: ${value}`);
+                            } else if (elTag === 'select') {
+                              (element as HTMLSelectElement).value = value;
+                              fieldsFilledSuccessfully++;
+                              console.log(`Successfully selected ${fieldIdentifier} with value: ${value}`);
+                            } else {
+                              warnings.push(`Element ${fieldIdentifier} is not an input, textarea, or select.`);
+                              fieldsSkipped++;
+                            }
+                          } else if (value === undefined) {
+                             warnings.push(`No value provided by AI for ${fieldIdentifier}.`);
+                             fieldsSkipped++;
+                          } else {
+                            warnings.push(`Could not find element for ${fieldIdentifier}.`);
+                            fieldsSkipped++;
+                          }
+                        } catch (e: any) {
+                          scriptErrorOccurred = true;
+                          warnings.push(`Error processing ${item.name || item.id || 'unknown field'}: ${e.message}`);
+                          fieldsSkipped++;
+                        }
+                      });
                     }
-                  });
+                    console.log(
+                      `Form Filling Summary: Processed: ${fieldsProcessed}, Filled: ${fieldsFilledSuccessfully}, Skipped/Errors: ${fieldsSkipped}`
+                    );
+                    if (warnings.length > 0) {
+                      console.warn("Warnings during form filling:", warnings);
+                    }
+                    if (scriptErrorOccurred) {
+                        return { error: "Error during field injection script." };
+                    }
+                    return { success: true }; 
+                  },
+                  args: [aiResult],
+                },
+                (injectionResults) => {
+                  if (chrome.runtime.lastError) {
+                    console.error(
+                      "Error injecting form filling script:",
+                      chrome.runtime.lastError.message
+                    );
+                    rejectScript(
+                      new Error(
+                        `Failed to inject script: ${chrome.runtime.lastError.message}`
+                      )
+                    );
+                    return;
+                  }
+                  if (injectionResults && injectionResults[0] && injectionResults[0].result) {
+                    const result = injectionResults[0].result;
+                    if (result.error) {
+                        console.error("Error reported from content script:", result.error);
+                        rejectScript(new Error(result.error));
+                    } else if (result.success) {
+                        console.log("Form filling script executed successfully by content script.");
+                        resolveScript();
+                    } else {
+                        // Fallback if result structure is unexpected
+                        console.warn("Unexpected result from content script:", result);
+                        resolveScript(); // Or reject, depending on desired strictness
+                    }
+                  } else {
+                    // This case might indicate the script itself had an unhandled exception
+                    // or an issue with the injection mechanism not returning a result.
+                    console.error("No result or unexpected result from form filling script injection.");
+                    rejectScript(
+                      new Error("No result from form filling script.")
+                    );
+                  }
                 }
-                // Summary Log
-                console.log("--- Autofill Summary ---");
-                console.log(`Total fields processed: ${fieldsProcessed}`);
-                console.log(
-                  `Successfully filled/actioned: ${fieldsFilledSuccessfully}`
-                );
-                console.log(`Skipped fields: ${fieldsSkipped}`);
-                if (warnings.length > 0) {
-                  console.warn("Warnings encountered:");
-                  warnings.forEach((w) => console.warn(`- ${w}`));
-                }
-                // Potentially return a summary object to the main extension page if needed
-                // return { fieldsProcessed, fieldsFilledSuccessfully, fieldsSkipped, warnings };
-              },
-              args: [aiResult],
-            });
-            toast({
-              title: "Automation Complete",
-              description: "Form filled successfully!",
-            });
-          } else {
-            throw new Error("Could not find active tab for script injection.");
-          }
+              );
+            } else {
+              rejectScript(new Error("No active tab found for script injection."));
+            }
+          });
+        });
+
+        // Schedule FORM_AUTOMATION_SUCCESS
+        const successTimeoutId = setTimeout(() => {
+          setDisplayedNotifications((prev) => [
+            ...prev,
+            FORM_AUTOMATION_SUCCESS_NOTIFICATION,
+          ]);
+        }, 300); // 300ms delay after injection notification is set
+        notificationTimeouts.current.push(successTimeoutId);
+
+        toast({
+          title: "Automation Complete",
+          description: "Form fields have been processed based on AI output.",
         });
       } else {
-        toast({
-          title: "AI Response Issue",
-          description: "AI did not return valid field data to fill.",
-          variant: "default",
-        });
+        // This case handles if aiResult is problematic or chrome.tabs not available
+        // (though chrome.tabs check is less likely here if HTML extraction worked)
+        throw new Error(
+          "AI result was invalid or browser environment changed unexpectedly."
+        );
       }
     } catch (error: any) {
       console.error("Automation Error:", error);
       toast({
         title: "Automation Failed",
-        description:
-          error.message || "An unexpected error occurred during automation.",
+        description: error.message || "An unknown error occurred.",
         variant: "destructive",
       });
+      clearAllNotificationTimeouts(); // Clear any scheduled initial or success notifications
+      
+      // Update displayed notifications to show error
+      // Keep notifications up to 'SENDING TO AI' if they were shown, then add error
+      const waitingForAiIndexOnError = FORM_FILLING_NOTIFICATIONS.findIndex(n => n.name === "WAITING FOR AI");
+      const baseNotificationsOnError = waitingForAiIndexOnError > -1 
+                                     ? FORM_FILLING_NOTIFICATIONS.slice(0, waitingForAiIndexOnError) 
+                                     : displayedNotifications.filter(n => 
+                                         n.name !== "WAITING FOR AI" && 
+                                         n.name !== AI_RESPONSE_RECEIVED_NOTIFICATION.name && 
+                                         n.name !== INJECTING_FORM_VALUES_NOTIFICATION.name
+                                       ); // Fallback if initial notifications didn't run far
+
+      setDisplayedNotifications([
+        ...baseNotificationsOnError.filter(n => n.name !== "WAITING FOR AI"),
+        AUTOMATION_ERROR_NOTIFICATION,
+      ]);
     } finally {
       setIsAutomating(false);
+      // Do not clear timeouts here if success ones are meant to run
+      // clearAllNotificationTimeouts(); // This was moved to start and error/success specific points
     }
   };
-  const notifications = [
-    {
-      name: "Payment received",
-      description: "Magic UI",
-      time: "15m ago",
 
-      icon: "💸",
-      color: "#00C9A7",
-    },
-    {
-      name: "User signed up",
-      description: "Magic UI",
-      time: "10m ago",
-      icon: "👤",
-      color: "#FFB800",
-    },
-    {
-      name: "New message",
-      description: "Magic UI",
-      time: "5m ago",
-      icon: "💬",
-      color: "#FF3D71",
-    },
-    {
-      name: "New event",
-      description: "Magic UI",
-      time: "2m ago",
-      icon: "🗞️",
-      color: "#1E86FF",
-    },
-    {
-      name: "Payment received",
-      description: "Magic UI",
-      time: "15m ago",
+  // Remove the old hardcoded 'notifications' array
+  // const notifications = [ ... ];
 
-      icon: "💸",
-      color: "#00C9A7",
-    },
-    {
-      name: "User signed up",
-      description: "Magic UI",
-      time: "10m ago",
-      icon: "👤",
-      color: "#FFB800",
-    },
-    {
-      name: "New message",
-      description: "Magic UI",
-      time: "5m ago",
-      icon: "💬",
-      color: "#FF3D71",
-    },
-    {
-      name: "New event",
-      description: "Magic UI",
-      time: "2m ago",
-      icon: "🗞️",
-      color: "#1E86FF",
-    },
-    {
-      name: "Payment received",
-      description: "Magic UI",
-      time: "15m ago",
-
-      icon: "💸",
-      color: "#00C9A7",
-    },
-    {
-      name: "User signed up",
-      description: "Magic UI",
-      time: "10m ago",
-      icon: "👤",
-      color: "#FFB800",
-    },
-    {
-      name: "New message",
-      description: "Magic UI",
-      time: "5m ago",
-      icon: "💬",
-      color: "#FF3D71",
-    },
-    {
-      name: "New event",
-      description: "Magic UI",
-      time: "2m ago",
-      icon: "🗞️",
-      color: "#1E86FF",
-    },
-  ];
   return (
     <div className="size-full flex flex-center relative">
       <AnimatedList className="mt-14 overflow-y-auto overflow-x-hidden h-[55vh] hide-scrollbar">
-        {notifications.map((notification, index) => (
-          <NotificationItem key={index} {...notification} />
+        {displayedNotifications.map((notification, index) => (
+          <NotificationItem
+            key={`${notification.name}-${index}`}
+            {...notification}
+          />
         ))}
       </AnimatedList>
 
