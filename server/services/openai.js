@@ -101,7 +101,18 @@ class OpenAIService {
   // New parsing method for the specific output format
   parseMappedFormResponse(apiResponse) {
     try {
-      const aiMessage = apiResponse.choices[0].message.content;
+      let aiMessage = apiResponse.choices[0].message.content;
+
+      // Remove markdown code block fences (e.g., ```json ... ```)
+      aiMessage = aiMessage.replace(/^```json\s*|\s*```$/g, "");
+
+      // Attempt to remove JavaScript-style line comments
+      // This regex looks for '//' followed by any characters until the end of the line
+      aiMessage = aiMessage.replace(/\/\/.*$/gm, "");
+
+      // Trim whitespace that could interfere with parsing
+      aiMessage = aiMessage.trim();
+
       const parsedJson = JSON.parse(aiMessage);
 
       // Validate the structure based on your prePrompt's output format

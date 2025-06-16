@@ -84,9 +84,18 @@ const Home: React.FC = () => {
 
     // Schedule initial notifications up to 'WAITING FOR AI'
     initialNotifications.forEach((notification, index) => {
-      const delay = notification.time === "0ms" ? 0 :
-                    parseInt(notification.time.replace("+", "").replace("ms", ""), 10) -
-                    (index > 0 ? parseInt(initialNotifications[index - 1].time.replace("+", "").replace("ms", ""), 10) : 0);
+      const delay =
+        notification.time === "0ms"
+          ? 0
+          : parseInt(notification.time.replace("+", "").replace("ms", ""), 10) -
+            (index > 0
+              ? parseInt(
+                  initialNotifications[index - 1].time
+                    .replace("+", "")
+                    .replace("ms", ""),
+                  10
+                )
+              : 0);
       currentDelay += delay;
 
       const timeoutId = setTimeout(() => {
@@ -160,7 +169,7 @@ const Home: React.FC = () => {
         });
         clearAllNotificationTimeouts(); // Clear scheduled initial notifications
         setDisplayedNotifications((prev) => [
-          ...prev.filter(n => n.name !== "WAITING FOR AI"), // Remove waiting if present
+          ...prev.filter((n) => n.name !== "WAITING FOR AI"), // Remove waiting if present
           AUTOMATION_ERROR_NOTIFICATION,
         ]);
         setIsAutomating(false);
@@ -260,13 +269,18 @@ const Home: React.FC = () => {
       clearAllNotificationTimeouts();
 
       // Determine notifications shown so far (up to SENDING_TO_AI)
-      const waitingForAiIndex = initialNotifications.findIndex(n => n.name === "WAITING FOR AI");
-      const baseNotifications = waitingForAiIndex > -1 ? initialNotifications.slice(0, waitingForAiIndex) : [...initialNotifications]; 
+      const waitingForAiIndex = initialNotifications.findIndex(
+        (n) => n.name === "WAITING FOR AI"
+      );
+      const baseNotifications =
+        waitingForAiIndex > -1
+          ? initialNotifications.slice(0, waitingForAiIndex)
+          : [...initialNotifications];
       // Ensure we don't include "WAITING FOR AI" if it was the last one scheduled by initial loop
       // Or, if AI is very fast, it might not have appeared yet.
 
       setDisplayedNotifications([
-        ...baseNotifications.filter(n => n.name !== "WAITING FOR AI"), // Ensure WAITING FOR AI is not shown
+        ...baseNotifications.filter((n) => n.name !== "WAITING FOR AI"), // Ensure WAITING FOR AI is not shown
         AI_RESPONSE_RECEIVED_NOTIFICATION,
       ]);
 
@@ -299,7 +313,10 @@ const Home: React.FC = () => {
                   target: { tabId: activeTab.id },
                   func: (formToFill) => {
                     // ... (Keep the robust field filling script from previous steps here)
-                    console.log("Form filling script executed with:", formToFill);
+                    console.log(
+                      "Form filling script executed with:",
+                      formToFill
+                    );
                     let fieldsProcessed = 0;
                     let fieldsFilledSuccessfully = 0;
                     let fieldsSkipped = 0;
@@ -323,63 +340,106 @@ const Home: React.FC = () => {
                           } = item;
                           const fieldIdentifier = `Field (Type: ${
                             type || "N/A"
-                          }, Name: ${name || "N/A"}, ID: ${itemId || "N/A"}, Label: ${label || "N/A"})`;
+                          }, Name: ${name || "N/A"}, ID: ${
+                            itemId || "N/A"
+                          }, Label: ${label || "N/A"})`;
 
                           if (itemId) {
                             element = document.getElementById(itemId);
                           }
                           if (!element && name) {
-                            const HACK_nameElements = Array.from(document.getElementsByName(name)) as HTMLElement[];
-                            if (HACK_nameElements.length > 0) element = HACK_nameElements[0];
+                            const HACK_nameElements = Array.from(
+                              document.getElementsByName(name)
+                            ) as HTMLElement[];
+                            if (HACK_nameElements.length > 0)
+                              element = HACK_nameElements[0];
                           }
-                          if (!element && attributes && attributes['aria-label']) {
-                            element = document.querySelector(`[aria-label="${attributes['aria-label']}"]`);
+                          if (
+                            !element &&
+                            attributes &&
+                            attributes["aria-label"]
+                          ) {
+                            element = document.querySelector(
+                              `[aria-label="${attributes["aria-label"]}"]`
+                            );
                           }
                           if (!element && label) {
-                            const labels = Array.from(document.querySelectorAll('label'));
-                            const foundLabel = labels.find(l => l.textContent?.trim().toLowerCase() === label.toLowerCase());
+                            const labels = Array.from(
+                              document.querySelectorAll("label")
+                            );
+                            const foundLabel = labels.find(
+                              (l) =>
+                                l.textContent?.trim().toLowerCase() ===
+                                label.toLowerCase()
+                            );
                             if (foundLabel) {
                               if (foundLabel.htmlFor) {
-                                element = document.getElementById(foundLabel.htmlFor);
+                                element = document.getElementById(
+                                  foundLabel.htmlFor
+                                );
                               } else {
-                                element = foundLabel.querySelector('input, textarea, select');
+                                element = foundLabel.querySelector(
+                                  "input, textarea, select"
+                                );
                               }
                             }
                           }
                           if (!element && placeholder) {
-                            element = document.querySelector(`[placeholder="${placeholder}"]`);
+                            element = document.querySelector(
+                              `[placeholder="${placeholder}"]`
+                            );
                           }
-                          if (!element && type && tag === 'input') {
-                             // More generic selector if others fail, could be risky
-                            const inputs = Array.from(document.querySelectorAll(`input[type="${type}"]`)) as HTMLInputElement[];
+                          if (!element && type && tag === "input") {
+                            // More generic selector if others fail, could be risky
+                            const inputs = Array.from(
+                              document.querySelectorAll(`input[type="${type}"]`)
+                            ) as HTMLInputElement[];
                             // This might need a more sophisticated way to pick the right one if multiple exist
-                            if(inputs.length === 1) element = inputs[0]; 
+                            if (inputs.length === 1) element = inputs[0];
                           }
 
                           if (element && value !== undefined) {
                             const elTag = element.tagName.toLowerCase();
-                            if (elTag === 'input' || elTag === 'textarea') {
-                              (element as HTMLInputElement | HTMLTextAreaElement).value = value;
+                            if (elTag === "input" || elTag === "textarea") {
+                              (
+                                element as
+                                  | HTMLInputElement
+                                  | HTMLTextAreaElement
+                              ).value = value;
                               fieldsFilledSuccessfully++;
-                              console.log(`Successfully filled ${fieldIdentifier} with value: ${value}`);
-                            } else if (elTag === 'select') {
+                              console.log(
+                                `Successfully filled ${fieldIdentifier} with value: ${value}`
+                              );
+                            } else if (elTag === "select") {
                               (element as HTMLSelectElement).value = value;
                               fieldsFilledSuccessfully++;
-                              console.log(`Successfully selected ${fieldIdentifier} with value: ${value}`);
+                              console.log(
+                                `Successfully selected ${fieldIdentifier} with value: ${value}`
+                              );
                             } else {
-                              warnings.push(`Element ${fieldIdentifier} is not an input, textarea, or select.`);
+                              warnings.push(
+                                `Element ${fieldIdentifier} is not an input, textarea, or select.`
+                              );
                               fieldsSkipped++;
                             }
                           } else if (value === undefined) {
-                             warnings.push(`No value provided by AI for ${fieldIdentifier}.`);
-                             fieldsSkipped++;
+                            warnings.push(
+                              `No value provided by AI for ${fieldIdentifier}.`
+                            );
+                            fieldsSkipped++;
                           } else {
-                            warnings.push(`Could not find element for ${fieldIdentifier}.`);
+                            warnings.push(
+                              `Could not find element for ${fieldIdentifier}.`
+                            );
                             fieldsSkipped++;
                           }
                         } catch (e: any) {
                           scriptErrorOccurred = true;
-                          warnings.push(`Error processing ${item.name || item.id || 'unknown field'}: ${e.message}`);
+                          warnings.push(
+                            `Error processing ${
+                              item.name || item.id || "unknown field"
+                            }: ${e.message}`
+                          );
                           fieldsSkipped++;
                         }
                       });
@@ -391,9 +451,9 @@ const Home: React.FC = () => {
                       console.warn("Warnings during form filling:", warnings);
                     }
                     if (scriptErrorOccurred) {
-                        return { error: "Error during field injection script." };
+                      return { error: "Error during field injection script." };
                     }
-                    return { success: true }; 
+                    return { success: true };
                   },
                   args: [aiResult],
                 },
@@ -410,23 +470,37 @@ const Home: React.FC = () => {
                     );
                     return;
                   }
-                  if (injectionResults && injectionResults[0] && injectionResults[0].result) {
+                  if (
+                    injectionResults &&
+                    injectionResults[0] &&
+                    injectionResults[0].result
+                  ) {
                     const result = injectionResults[0].result;
                     if (result.error) {
-                        console.error("Error reported from content script:", result.error);
-                        rejectScript(new Error(result.error));
+                      console.error(
+                        "Error reported from content script:",
+                        result.error
+                      );
+                      rejectScript(new Error(result.error));
                     } else if (result.success) {
-                        console.log("Form filling script executed successfully by content script.");
-                        resolveScript();
+                      console.log(
+                        "Form filling script executed successfully by content script."
+                      );
+                      resolveScript();
                     } else {
-                        // Fallback if result structure is unexpected
-                        console.warn("Unexpected result from content script:", result);
-                        resolveScript(); // Or reject, depending on desired strictness
+                      // Fallback if result structure is unexpected
+                      console.warn(
+                        "Unexpected result from content script:",
+                        result
+                      );
+                      resolveScript(); // Or reject, depending on desired strictness
                     }
                   } else {
                     // This case might indicate the script itself had an unhandled exception
                     // or an issue with the injection mechanism not returning a result.
-                    console.error("No result or unexpected result from form filling script injection.");
+                    console.error(
+                      "No result or unexpected result from form filling script injection."
+                    );
                     rejectScript(
                       new Error("No result from form filling script.")
                     );
@@ -434,7 +508,9 @@ const Home: React.FC = () => {
                 }
               );
             } else {
-              rejectScript(new Error("No active tab found for script injection."));
+              rejectScript(
+                new Error("No active tab found for script injection.")
+              );
             }
           });
         });
@@ -467,20 +543,24 @@ const Home: React.FC = () => {
         variant: "destructive",
       });
       clearAllNotificationTimeouts(); // Clear any scheduled initial or success notifications
-      
+
       // Update displayed notifications to show error
       // Keep notifications up to 'SENDING TO AI' if they were shown, then add error
-      const waitingForAiIndexOnError = FORM_FILLING_NOTIFICATIONS.findIndex(n => n.name === "WAITING FOR AI");
-      const baseNotificationsOnError = waitingForAiIndexOnError > -1 
-                                     ? FORM_FILLING_NOTIFICATIONS.slice(0, waitingForAiIndexOnError) 
-                                     : displayedNotifications.filter(n => 
-                                         n.name !== "WAITING FOR AI" && 
-                                         n.name !== AI_RESPONSE_RECEIVED_NOTIFICATION.name && 
-                                         n.name !== INJECTING_FORM_VALUES_NOTIFICATION.name
-                                       ); // Fallback if initial notifications didn't run far
+      const waitingForAiIndexOnError = FORM_FILLING_NOTIFICATIONS.findIndex(
+        (n) => n.name === "WAITING FOR AI"
+      );
+      const baseNotificationsOnError =
+        waitingForAiIndexOnError > -1
+          ? FORM_FILLING_NOTIFICATIONS.slice(0, waitingForAiIndexOnError)
+          : displayedNotifications.filter(
+              (n) =>
+                n.name !== "WAITING FOR AI" &&
+                n.name !== AI_RESPONSE_RECEIVED_NOTIFICATION.name &&
+                n.name !== INJECTING_FORM_VALUES_NOTIFICATION.name
+            ); // Fallback if initial notifications didn't run far
 
       setDisplayedNotifications([
-        ...baseNotificationsOnError.filter(n => n.name !== "WAITING FOR AI"),
+        ...baseNotificationsOnError.filter((n) => n.name !== "WAITING FOR AI"),
         AUTOMATION_ERROR_NOTIFICATION,
       ]);
     } finally {
@@ -508,20 +588,47 @@ const Home: React.FC = () => {
         <div className="flex flex-row justify-between items-center">
           <Label htmlFor="formDataInput" className=" font-semibold">
             Your Instructions:
-          </Label>{" "}
-          <Button
-            onClick={handleRunAutomation}
-            disabled={isAutomating || !auth?.token}
-            className="flex flex-center px-3 border border-input text-sm hover:bg-black  text-white  bg-black min-w-32"
-          >
-            {isAutomating ? (
-              <>
-                <LoaderIcon className="h-5 w-5 animate-spin" />
-              </>
-            ) : (
-              "Automate ⚡"
-            )}
-          </Button>
+          </Label>
+          <div className="flex flex-row gap-2">
+            <Button
+              onClick={handleRunAutomation}
+              disabled={isAutomating || !auth?.token}
+              className="flex flex-center px-3 border border-input text-sm hover:bg-black  text-white  bg-black "
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                className-linejoin="round"
+                className="lucide lucide-combine-icon lucide-combine"
+              >
+                <path d="M10 18H5a3 3 0 0 1-3-3v-1" />
+                <path d="M14 2a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2" />
+                <path d="M20 2a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2" />
+                <path d="m7 21 3-3-3-3" />
+                <rect x="14" y="14" width="8" height="8" rx="2" />
+                <rect x="2" y="2" width="8" height="8" rx="2" />
+              </svg>{" "}
+            </Button>
+            <Button
+              onClick={handleRunAutomation}
+              disabled={isAutomating || !auth?.token}
+              className="flex flex-center px-3 border border-input text-sm hover:bg-black  text-white  bg-black min-w-32"
+            >
+              {isAutomating ? (
+                <>
+                  <LoaderIcon className="h-5 w-5 animate-spin" />
+                </>
+              ) : (
+                "Automate ⚡"
+              )}
+            </Button>
+          </div>
         </div>
         <div className="relative p-2 border mt-1 rounded-2xl ">
           <Textarea
