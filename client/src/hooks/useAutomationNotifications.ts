@@ -1,50 +1,29 @@
-import { useState, useRef } from "react";
-// Assuming NotificationItem will be created at: @/components/page/home/NotificationItem
-// If the path is different, please adjust the import.
-import { Item as NotificationItemProps } from "@/components/page/home/NotificationItem";
-import {
-  FORM_FILLING_NOTIFICATIONS,
-  AI_RESPONSE_RECEIVED_NOTIFICATION,
-  INJECTING_FORM_VALUES_NOTIFICATION,
-  FORM_AUTOMATION_SUCCESS_NOTIFICATION,
-  AUTOMATION_ERROR_NOTIFICATION,
-} from "@/constants/constants";
+import { useState, useRef, useCallback } from 'react';
+import { Item as NotificationItemProps } from '@/components/page/home/NotificationItem'; // Adjusted import for Item props
 
 export const useAutomationNotifications = () => {
-  const [displayedNotifications, setDisplayedNotifications] = useState<
-    NotificationItemProps[]
-  >([]);
+  const [displayedNotifications, setDisplayedNotifications] = useState<NotificationItemProps[]>([]);
   const notificationTimeouts = useRef<NodeJS.Timeout[]>([]);
 
-  const clearAllNotificationTimeouts = () => {
+  const clearAllNotificationTimeouts = useCallback(() => {
     notificationTimeouts.current.forEach(clearTimeout);
     notificationTimeouts.current = [];
-  };
+  }, []);
 
-  const scheduleInitialNotifications = () => {
-    clearAllNotificationTimeouts();
-    setDisplayedNotifications([]); // Start with a clean slate
-
+  const scheduleNotifications = useCallback((notificationsToSchedule: NotificationItemProps[]) => {
     let currentDelay = 0;
-    const initialNotifications = FORM_FILLING_NOTIFICATIONS;
-
-    initialNotifications.forEach((notification, index) => {
-      // Calculate delay relative to the previous notification's time
-      const previousTime =
-        index > 0
-          ? parseInt(
-              initialNotifications[index - 1].time
-                .replace("+", "")
-                .replace("ms", ""),
-              10
-            )
-          : 0;
-      const currentTime = parseInt(
-        notification.time.replace("+", "").replace("ms", ""),
-        10
-      );
-      const delay = currentTime - previousTime;
-
+    notificationsToSchedule.forEach((notification, index) => {
+      const delay = notification.time === "0ms"
+        ? 0
+        : parseInt(notification.time.replace("+", "").replace("ms", ""), 10) -
+          (index > 0
+            ? parseInt(
+                notificationsToSchedule[index - 1].time
+                  .replace("+", "")
+                  .replace("ms", ""),
+                10
+              )
+            : 0);
       currentDelay += delay;
 
       const timeoutId = setTimeout(() => {
@@ -52,68 +31,30 @@ export const useAutomationNotifications = () => {
       }, currentDelay);
       notificationTimeouts.current.push(timeoutId);
     });
-  };
+  }, []);
 
-  const showSuccessNotifications = () => {
-    // Clear any pending timeouts from the initial schedule
-    clearAllNotificationTimeouts();
+  const addNotification = useCallback((notification: NotificationItemProps) => {
+    setDisplayedNotifications((prev) => [...prev, notification]);
+  }, []);
 
-    // Remove "WAITING FOR AI" if present, then add success notifications sequentially
-    setDisplayedNotifications((prev) => {
-      const filtered = prev.filter(
-        (n) =>
-          n.name !== "WAITING FOR AI" &&
-          n.name !==
-            FORM_FILLING_NOTIFICATIONS[FORM_FILLING_NOTIFICATIONS.length - 1]
-              .name
-      );
-      return [...filtered, AI_RESPONSE_RECEIVED_NOTIFICATION];
-    });
+  const replaceLastNotification = useCallback((notification: NotificationItemProps) => {
+    setDisplayedNotifications((prev) => [...prev.slice(0, -1), notification]);
+  }, []);
 
-    const injectTimeoutId = setTimeout(() => {
-      setDisplayedNotifications((prev) => [
-        ...prev,
-        INJECTING_FORM_VALUES_NOTIFICATION,
-      ]);
-    }, 300); // 300ms delay after AI_RESPONSE_RECEIVED
-    notificationTimeouts.current.push(injectTimeoutId);
-
-    const successTimeoutId = setTimeout(() => {
-      setDisplayedNotifications((prev) => [
-        ...prev,
-        FORM_AUTOMATION_SUCCESS_NOTIFICATION,
-      ]);
-    }, 600); // 300ms after INJECTING_FORM_VALUES, so 600ms total from AI_RESPONSE_RECEIVED
-    notificationTimeouts.current.push(successTimeoutId);
-  };
-
-  const showErrorNotification = (errorMessage?: string) => {
-    clearAllNotificationTimeouts();
-    setDisplayedNotifications((prev) => [
-      ...prev.filter(
-        (n) =>
-          n.name !== "WAITING FOR AI" &&
-          n.name !==
-            FORM_FILLING_NOTIFICATIONS[FORM_FILLING_NOTIFICATIONS.length - 1]
-              .name
-      ),
-      {
-        ...AUTOMATION_ERROR_NOTIFICATION,
-        message: errorMessage || AUTOMATION_ERROR_NOTIFICATION.message,
-      },
-    ]);
-  };
-
-  const clearAll = () => {
-    clearAllNotificationTimeouts();
+  const clearAll = useCallback(() => {
     setDisplayedNotifications([]);
-  };
+    clearAllNotificationTimeouts();
+  }, [clearAllNotificationTimeouts]);
 
   return {
     displayedNotifications,
-    scheduleInitialNotifications,
-    showSuccessNotifications,
-    showErrorNotification,
+    scheduleNotifications,
+    addNotification,
+    replaceLastNotification,
     clearAll,
+    // This internal function is also returned because useAutomationRunner will need it.
+    // Alternatively, clearAllNotificationTimeouts could be managed within useAutomationRunner
+    // if it's the only other hook needing direct timeout control.
+    clearAllNotificationTimeoutsInternal: clearAllNotificationTimeouts 
   };
 };
