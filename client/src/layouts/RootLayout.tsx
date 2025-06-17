@@ -10,17 +10,12 @@ function RootLayout() {
       Math.floor(Math.random() * max),
     ]);
   return (
-    <div className="relative flex flex-col w-screen min-h-screen">
-      {/*Logo */}
-      <Link
-        to={ROUTES.HOME}
-        className=" font-bold no-underline absolute top-2 left-1/2 -translate-x-1/2 opacity-10 text-sm"
-      >
-        TETRAI
-      </Link>
+    <div className="relative  w-screen h-screen">
+      {/* Outlet for nested routes */}
+      <Outlet />
 
-      {/* GridPattern as a background for all pages */}
-      <div className="absolute inset-0 bg-black -z-50 overflow-hidden">
+      {/* Background gradient */}
+      <div className="fixed inset-0 bg-black -z-50 overflow-hidden">
         <GridPattern
           squares={generateRandomSquares().map(
             ([x, y]) => [x, y] as [number, number]
@@ -35,9 +30,13 @@ function RootLayout() {
         />
       </div>
 
-      {/* Outlet for nested routes */}
-
-      <Outlet />
+      {/*Logo */}
+      <Link
+        to={ROUTES.HOME}
+        className=" font-bold no-underline absolute top-2 left-1/2 -translate-x-1/2 opacity-10 text-sm"
+      >
+        TETRAI
+      </Link>
     </div>
   );
 }
