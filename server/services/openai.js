@@ -17,6 +17,7 @@ class OpenAIService {
 
   // New method for mapping with the detailed pre-prompt
   async mapUserInputToForm(userInput, pageStructure) {
+    console.log("pageStructure: ", pageStructure);
     const prePromptTemplate = ` 
  You are an intelligent agent that maps freeform user input to a structured web form for automated filling. 
  

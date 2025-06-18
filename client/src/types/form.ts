@@ -10,9 +10,11 @@ export interface ExtractedElement {
   type?: string;
   placeholder?: string;
   label?: string;
-  text: string | null;
+  text?: string | null;
   value?: string; // Current value from the page
   required?: boolean;
+  options?: Array<{ label: string; value: string; text?: string }>; // Add this line
+  children?: ExtractedElement[]; // If you use children for other things
 }
 
 export interface AiFilledFormStructure {

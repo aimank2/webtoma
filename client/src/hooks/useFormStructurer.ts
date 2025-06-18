@@ -40,7 +40,7 @@ export const useFormStructurer = () => {
           }
           // Add more sophisticated label finding logic if needed (e.g., aria-labelledby)
 
-          return {
+          const baseExtractedElement: Omit<ExtractedElement, 'tag'> & { tag: string } = {
             tag: inputElement.tagName.toLowerCase(),
             attributes: Array.from(inputElement.attributes).reduce(
               (acc, attr) => {
@@ -58,6 +58,21 @@ export const useFormStructurer = () => {
             value: (inputElement as HTMLInputElement).value || undefined,
             required: (inputElement as HTMLInputElement).required || undefined,
           };
+
+          if (baseExtractedElement.tag === 'select') {
+            const selectElement = inputElement as HTMLSelectElement;
+            const options = Array.from(selectElement.options).map(opt => ({
+              label: opt.label || opt.text || opt.value,
+              value: opt.value,
+              text: opt.text, // It might be useful to keep original text as well
+            }));
+            return {
+              ...baseExtractedElement,
+              options: options,
+            } as ExtractedElement; // Cast to ExtractedElement which should include options
+          }
+
+          return baseExtractedElement as ExtractedElement;
         }
       );
       console.log(`Form structured with ${structuredPageData.length} fields`);

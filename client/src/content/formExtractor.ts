@@ -150,14 +150,14 @@ const extractFormFromPage = (): FormStructure => {
       case "select": {
         const selectElement = element as HTMLSelectElement;
         const options = Array.from(selectElement.options).map((opt) => ({
-          label: opt.label || opt.text || opt.value, // opt.text for broader compatibility
+          label: opt.label || opt.text || opt.value, 
           value: opt.value,
         }));
         fields.push({
           ...baseFieldProps,
           type: "select",
-          value: selectElement.value,
-          options,
+          value: selectElement.value, // Current value of the select
+          options, // <<<< THIS IS WHERE THE ARRAY SHOULD BE ADDED
         } as SelectField);
         break;
       }
