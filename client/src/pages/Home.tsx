@@ -4,6 +4,15 @@ import NotificationItem from "@/components/page/home/NotificationItem"; // Assum
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  INITIAL_NOTIFICATIONS,
+  ERROR_NOTIFICATION_BASE,
+  AUTH_ERROR_MESSAGE,
+  SUCCESS_NOTIFICATION_BASE,
+  AUTOMATION_SUCCESS_MESSAGE,
+  GENERIC_ERROR_MESSAGE,
+  BASE_DELAY,
+} from "@/constants/constants";
 import { AuthContext } from "@/contexts/AuthContext";
 import { useAutomationRunner } from "@/hooks/useAutomationRunner";
 import React, { useCallback, useContext, useRef, useState } from "react"; // Added useRef, useCallback
@@ -18,55 +27,7 @@ const getCurrentTime = () => {
   });
 };
 // --- End of Helper function ---
-const baseDelay = 2500;
 const randomOffset = Math.floor(Math.random() * 1000); // 0–999 ms
-
-// --- Re-introduced Notification Constants and Types ---
-const INITIAL_NOTIFICATION_MESSAGE = "Waking up the bots...";
-const WAITING_FOR_AI_MESSAGE = "AI is deep in thought...";
-const AUTOMATION_SUCCESS_MESSAGE = "Bots did the thing! 🎉";
-const AUTH_ERROR_MESSAGE = "Oops! Who goes there? Please log in.";
-const GENERIC_ERROR_MESSAGE = "Something broke. Blame the robots.";
-
-const INITIAL_NOTIFICATIONS: Omit<any, "time">[] = [
-  {
-    name: "Power On",
-    description: INITIAL_NOTIFICATION_MESSAGE,
-    icon: "⏳",
-    // time will be set dynamically
-  },
-  {
-    name: "Link Up",
-    description: "Connecting to secure channel...",
-    icon: "🔗",
-    // time will be set dynamically
-  },
-  {
-    name: "Gear Up",
-    description: "Setting up the environment...",
-    icon: "🛠️",
-    // time will be set dynamically
-  },
-  {
-    name: "Thinking",
-    description: WAITING_FOR_AI_MESSAGE,
-    icon: "🤖",
-    // time will be set dynamically
-  },
-];
-
-const SUCCESS_NOTIFICATION_BASE: Omit<any, "time" | "description"> = {
-  name: "SUCCESS",
-  icon: "✅",
-  color: "#10B981",
-};
-
-const ERROR_NOTIFICATION_BASE: Omit<any, "time" | "description"> = {
-  name: "ERROR",
-  icon: "❌",
-  color: "#EF4444",
-};
-// --- End of Notification Constants and Types ---
 
 const Home: React.FC = () => {
   const [formDataInput, setFormDataInput] = useState<string>("");
@@ -112,7 +73,7 @@ const Home: React.FC = () => {
     let cumulativeDelay = 0;
 
     INITIAL_NOTIFICATIONS.forEach((notificationBase, index) => {
-      const delay = index === 0 ? 0 : baseDelay + randomOffset;
+      const delay = index === 0 ? 0 : BASE_DELAY + randomOffset;
       cumulativeDelay += delay;
       const timeoutId = setTimeout(() => {
         addNotificationToList(notificationBase); // time will be added by addNotificationToList
