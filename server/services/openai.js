@@ -17,7 +17,14 @@ class OpenAIService {
 
   // New method for mapping with the detailed pre-prompt
   async mapUserInputToForm(userInput, pageStructure) {
-    console.log("pageStructure: ", pageStructure);
+    console.log(
+      "mapUserInputToForm: UserInput:",
+      JSON.stringify(userInput, null, 2)
+    );
+    console.log(
+      "mapUserInputToForm: PageStructure:",
+      JSON.stringify(pageStructure, null, 2)
+    );
     const prePromptTemplate = ` 
  You are an intelligent agent that maps freeform user input to a structured web form for automated filling. 
  
@@ -28,15 +35,15 @@ class OpenAIService {
  
  ## Instructions: 
  - Parse the user input and extract all possible values. 
- - For each element in the \"formStructure\" (from PageStructure.formStructure), assign a value or status based on its type, label, and attributes. 
+ - For each element in the "formStructure" (from PageStructure.formStructure), assign a value or status based on its type, label, and attributes. 
  - If the field type is: 
    - **input** (text, email, password, etc.): extract a suitable value. 
    - **textarea**: extract meaningful long-form content (if present). 
    - **checkbox**: infer intent from user input (e.g., “subscribe”, “yes”, “opt-in” → true). 
    - **select** or **radio**: infer selected value from user input matching available options. 
    - **button**: set type and status, but no need to map values. 
- - If no matching user data is found for a field, leave the value as \"null\" or \"\" and mark its status as \"waiting\". 
- - Each field should include: \"type\", \"name\", \"value\" (or \"checked\"), \"label\" (if available), and \"status\". 
+ - If no matching user data is found for a field, leave the value as "null" or "" and mark its status as "waiting". 
+ - Each field should include: "type", "name", "value" (or "checked"), "label" (if available), and "status". 
  
  ## Inputs: 
  - UserInput: ${userInput} 
@@ -65,22 +72,30 @@ class OpenAIService {
     `;
 
     try {
+      console.log("mapUserInputToForm: Sending request to OpenAI...");
       const response = await this.client.post("/chat/completions", {
-        model: "o4-mini",
+        model: "o4-mini", // Ensure this model provides usage stats. gpt-3.5-turbo and gpt-4 models do.
         messages: [
-          // No separate system prompt needed if the user prompt is comprehensive enough
           {
             role: "user",
-            content: prePromptTemplate, // Use the detailed prompt here
+            content: prePromptTemplate,
           },
         ],
-        temperature: 1, // (KEEP IT 1 >> BECAUSE THIS MODEL ONLY SUPPORTS TEMP 1) Lower temperature for more deterministic, structured output
-        // response_format: { type: "json_object" }, // If using a model version that supports this
+        temperature: 1,
       });
 
-      // Use a new parsing method tailored for the expected JSON output
+      console.log(
+        "mapUserInputToForm: OpenAI API Response Data:",
+        JSON.stringify(response.data, null, 2)
+      );
+
       const mappedForm = this.parseMappedFormResponse(response.data);
-      return mappedForm;
+
+      // IMPORTANT: Include usage data in the return
+      return {
+        mappedForm,
+        usage: response.data.usage, // Assuming 'usage' is directly available in response.data
+      };
     } catch (error) {
       console.error(
         "OpenAI API Error (mapUserInputToForm):",
@@ -101,22 +116,72 @@ class OpenAIService {
 
   // New parsing method for the specific output format
   parseMappedFormResponse(apiResponse) {
+    console.log(
+      "parseMappedFormResponse: Received API Response:",
+      JSON.stringify(apiResponse, null, 2)
+    );
     try {
+      if (
+        !apiResponse ||
+        !apiResponse.choices ||
+        !apiResponse.choices[0] ||
+        !apiResponse.choices[0].message ||
+        !apiResponse.choices[0].message.content
+      ) {
+        console.error(
+          "parseMappedFormResponse: Invalid API response structure. 'content' is missing.",
+          apiResponse
+        );
+        throw new Error(
+          "Invalid API response structure from OpenAI. Expected 'choices[0].message.content'."
+        );
+      }
       let aiMessage = apiResponse.choices[0].message.content;
+      console.log(
+        "parseMappedFormResponse: Raw aiMessage before processing:",
+        aiMessage
+      );
 
       // Remove markdown code block fences (e.g., ```json ... ```)
       aiMessage = aiMessage.replace(/^```json\s*|\s*```$/g, "");
+      console.log(
+        "parseMappedFormResponse: aiMessage after removing markdown fences:",
+        aiMessage
+      );
 
       // Attempt to remove JavaScript-style line comments
-      // This regex looks for '//' followed by any characters until the end of the line
       aiMessage = aiMessage.replace(/\/\/.*$/gm, "");
+      console.log(
+        "parseMappedFormResponse: aiMessage after removing comments:",
+        aiMessage
+      );
 
       // Trim whitespace that could interfere with parsing
       aiMessage = aiMessage.trim();
+      console.log(
+        "parseMappedFormResponse: aiMessage after trimming:",
+        aiMessage
+      );
 
+      if (aiMessage === "") {
+        console.error(
+          "parseMappedFormResponse: aiMessage is empty after processing. Cannot parse."
+        );
+        throw new Error(
+          "AI message is empty after pre-processing, cannot parse JSON."
+        );
+      }
+
+      console.log(
+        "parseMappedFormResponse: Attempting to parse aiMessage:",
+        aiMessage
+      );
       const parsedJson = JSON.parse(aiMessage);
+      console.log(
+        "parseMappedFormResponse: Successfully parsed JSON:",
+        parsedJson
+      );
 
-      // Validate the structure based on your prePrompt's output format
       if (
         !parsedJson ||
         typeof parsedJson.status !== "string" ||
@@ -130,17 +195,19 @@ class OpenAIService {
           "AI response format is incorrect. Expected { status: string, fields: array }."
         );
       }
-
-      // Further validation of individual fields can be added here if needed
-      // For example, check if each field has 'type', 'name', 'status'.
-
-      return parsedJson; // Return the direct JSON as per your defined output format
+      return parsedJson;
     } catch (error) {
       console.error(
         "Failed to parse OpenAI mapped form response:",
         error,
-        "Raw AI Response:",
-        apiResponse.choices[0].message.content
+        "Raw AI Response Content (if available):",
+        apiResponse && apiResponse.choices && apiResponse.choices[0]
+          ? apiResponse.choices[0].message.content
+          : "No content found in expected path",
+        "Processed aiMessage before JSON.parse (if available):",
+        typeof aiMessage !== "undefined"
+          ? aiMessage
+          : "aiMessage was not defined at point of error"
       );
       throw new Error(
         `Failed to parse AI mapped form response: ${error.message}`

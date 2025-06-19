@@ -82,15 +82,16 @@ function SignIn() {
             {/* <TextAnimate
               animation="fadeIn"
               by="character"
-              key="TETRAI-title-layout"
+              key="WEBTOMA-title-layout"
               delay={0.2}
               duration={1}
             > */}
-            TETRAI
+            WEBTOMA
             {/* </TextAnimate> */}
           </div>
           <p className="text-lg text-gray-600">
-            Your Smart Form Filling Companion⚡
+            Your Smart Web <br />
+            Companion⚡
           </p>
         </div>
 

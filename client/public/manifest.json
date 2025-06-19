@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "version": "1.0",
-  "name": "Form Filler",
+  "name": "Webtoma",
   "side_panel": {
     "default_path": "index.html"
   },
@@ -16,7 +16,13 @@
     "activeTab",
     "scripting",
     "identity",
-    "identity.email"
+    "identity.email",
+    "storage",
+    "activeTab",
+    "scripting",
+    "identity",
+    "identity.email",
+    "tabs"
   ],
   "oauth2": {
     "client_id": "581875153522-44qhjt4693geitf1cis0bf91rkf7dmja.apps.googleusercontent.com",

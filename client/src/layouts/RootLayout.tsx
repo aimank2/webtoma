@@ -35,7 +35,7 @@ function RootLayout() {
         to={ROUTES.HOME}
         className=" font-bold no-underline absolute top-2 left-1/2 -translate-x-1/2 opacity-10 text-sm"
       >
-        TETRAI
+        WEBTOMA
       </Link>
     </div>
   );

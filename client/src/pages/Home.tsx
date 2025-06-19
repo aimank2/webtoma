@@ -1,4 +1,6 @@
 import LoaderIcon from "@/assets/icons/LoaderIcon";
+import RefreshCwIcon from "@/assets/icons/ReloadIcon";
+import Badge from "@/components/badge";
 import { AnimatedList } from "@/components/magicui/animated-list";
 import NotificationItem from "@/components/page/home/NotificationItem"; // Assuming any is exported here
 import { Button } from "@/components/ui/button";
@@ -15,7 +17,13 @@ import {
 } from "@/constants/constants";
 import { AuthContext } from "@/contexts/AuthContext";
 import { useAutomationRunner } from "@/hooks/useAutomationRunner";
-import React, { useCallback, useContext, useRef, useState } from "react"; // Added useRef, useCallback
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react"; // Added useEffect
 
 // --- Helper function to get current time ---
 const getCurrentTime = () => {
@@ -32,8 +40,9 @@ const randomOffset = Math.floor(Math.random() * 1000); // 0–999 ms
 const Home: React.FC = () => {
   const [formDataInput, setFormDataInput] = useState<string>("");
   const auth = useContext(AuthContext);
+  const [currentTabTitle, setCurrentTabTitle] = useState<string>(""); // New state for tab title
 
-  // --- Re-introduced Notification State and Refs ---
+  // --- Re-introduced Notification State and Refs --- //
   const [displayedNotifications, setDisplayedNotifications] = useState<any[]>(
     []
   );
@@ -83,6 +92,48 @@ const Home: React.FC = () => {
   }, [clearAllNotificationTimeouts, addNotificationToList]);
   // --- End of Notification Helper Functions ---
 
+  // --- useEffect to get and update tab title ---
+  useEffect(() => {
+    // Function to get the active tab's title
+    const getActiveTabTitle = async () => {
+      if (chrome && chrome.tabs) {
+        chrome.tabs.query(
+          { active: true, currentWindow: true },
+          function (tabs) {
+            if (tabs[0] && tabs[0].title) {
+              setCurrentTabTitle(tabs[0].title);
+            }
+          }
+        );
+      }
+    };
+
+    getActiveTabTitle();
+
+    // Optional: Listen for tab updates if you need it to be dynamic
+    const handleTabUpdate = (
+      _tabId: number,
+      changeInfo: chrome.tabs.TabChangeInfo,
+      tab: chrome.tabs.Tab
+    ) => {
+      if (tab.active && changeInfo.title) {
+        setCurrentTabTitle(changeInfo.title);
+      }
+    };
+
+    if (chrome && chrome.tabs && chrome.tabs.onUpdated) {
+      chrome.tabs.onUpdated.addListener(handleTabUpdate);
+    }
+
+    // Cleanup listener on component unmount
+    return () => {
+      if (chrome && chrome.tabs && chrome.tabs.onUpdated) {
+        chrome.tabs.onUpdated.removeListener(handleTabUpdate);
+      }
+    };
+  }, []);
+  // --- End of useEffect ---
+
   const { runAutomation, isRunning } = useAutomationRunner({
     onAuthError: () => {
       clearAllNotificationTimeouts();
@@ -127,6 +178,17 @@ const Home: React.FC = () => {
   });
 
   const handleAutomationClick = async () => {
+    if (!auth?.user || auth.user.credits <= 0) {
+      // Check credits here too
+      addNotificationToList({
+        name: "NO_CREDITS_ERROR",
+        description:
+          "You have no credits left. Please upgrade or wait for reset.",
+        icon: "🚫",
+        color: "#EF4444", // Red
+      });
+      return;
+    }
     if (!formDataInput.trim()) {
       console.warn("Input Required: Please describe what the form should do.");
       // Optionally, display a specific notification for empty input
@@ -145,9 +207,13 @@ const Home: React.FC = () => {
     runAutomation(formDataInput);
   };
 
+  const handleReloadPanel = () => {
+    location.reload(); // Only refreshes the side panel or popup UI
+  };
+
   return (
     <div className="size-full flex flex-center relative">
-      <AnimatedList className="mt-14 overflow-y-auto overflow-x-hidden h-[55vh] hide-scrollbar">
+      <AnimatedList className="absolute top-14  -translate-x-1/2 left-1/2 overflow-y-auto overflow-x-hidden h-[55vh] hide-scrollbar">
         {/* displayedNotifications now comes from local state */}
         {displayedNotifications.map((notification, index) => (
           <NotificationItem
@@ -157,7 +223,24 @@ const Home: React.FC = () => {
         ))}
       </AnimatedList>
 
-      <div className="fixed bottom-24 w-full px-4 flex flex-col  ">
+      <div className="fixed bottom-24 w-full px-4 flex flex-col gap-2 ">
+        {/* Display current tab title and make it clickable to reload */}
+        {currentTabTitle && (
+          <div
+            onClick={handleReloadPanel}
+            title="Click to reload extension"
+            className="cursor-pointer opacity-50 "
+          >
+            {/* <p className="text-xs opacity-75 text-start font-thin">
+              Click here to update current page
+            </p> */}
+            <Badge
+              className="!px-1 !text-sm !bg-black font-thin"
+              text={`Currently on : ${currentTabTitle}`}
+              rightIcon={<RefreshCwIcon className="size-4" />}
+            />
+          </div>
+        )}
         <div className="flex flex-row justify-between items-center">
           <Label htmlFor="formDataInput" className=" font-semibold">
             Your Instructions:
@@ -165,7 +248,11 @@ const Home: React.FC = () => {
           <div className="flex flex-row gap-2">
             <Button
               onClick={handleAutomationClick}
-              disabled={isRunning || !auth?.token}
+              disabled={
+                isRunning ||
+                !auth?.token ||
+                (auth?.user?.credits !== undefined && auth.user.credits <= 0)
+              }
               className="flex flex-center px-3 border border-input text-sm hover:bg-black  text-white  bg-black min-w-32"
             >
               {isRunning ? (

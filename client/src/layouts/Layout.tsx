@@ -41,22 +41,22 @@ function Layout() {
             direction="middle"
             className="bg-background/80 backdrop-blur-sm"
           >
-            <DockIcon onClick={() => navigate(-1)}>
+            <DockIcon className="p-[2px] scale-75" onClick={() => navigate(-1)}>
               <ChevronLeftIcon className="h-6 w-6" />
             </DockIcon>
-            <DockIcon>
-              <Link to={ROUTES.HOME}>
+            <Link to={ROUTES.HOME}>
+              <DockIcon className="p-[2px]">
                 <HomeIcon className="h-5 w-5" />
-              </Link>
-            </DockIcon>
-            {user && (
-              <DockIcon>
-                <Link to={ROUTES.PROFILE}>
-                  <AccountIcon className="h-5 w-5" />
-                </Link>
               </DockIcon>
+            </Link>
+            {user && (
+              <Link to={ROUTES.PROFILE}>
+                <DockIcon className="p-[2px]">
+                  <AccountIcon className="h-5 w-5" />
+                </DockIcon>
+              </Link>
             )}
-            <DockIcon onClick={() => navigate(1)}>
+            <DockIcon className="p-[2px] scale-75" onClick={() => navigate(1)}>
               <ChevronRightIcon className="h-6 w-6" />
             </DockIcon>
           </Dock>

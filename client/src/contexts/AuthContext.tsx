@@ -8,10 +8,10 @@ import React, {
 
 // Define the shape of the user profile
 interface UserProfile {
+  credits: number;
   id: string;
   name?: string;
   email: string;
-  avatar?: string;
   // Add other user properties as needed
 }
 
@@ -75,7 +75,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
   const fetchUserProfile = useCallback(async (jwtToken: string) => {
     try {
-      const response = await fetch("http://localhost:3001/api/user/me", {
+      const response = await fetch("http://localhost:3001/api/user/profile", {
         headers: { Authorization: `Bearer ${jwtToken}` },
       });
       if (!response.ok) {
