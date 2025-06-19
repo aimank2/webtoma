@@ -1,5 +1,5 @@
-// c:\Users\AIMANOV\Desktop\next-js\form-filler\client\src\assets\icons\LogoutIcon.tsx
-import React from 'react';
+// c:\Users\AIMANOV\Desktop\next-js\webtoma\client\src\assets\icons\LogoutIcon.tsx
+import React from "react";
 
 const LogoutIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   <svg

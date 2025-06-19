@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "version": "1.0",
-  "name": "Form Filler",
+  "name": "Webtoma",
   "side_panel": {
     "default_path": "index.html"
   },
