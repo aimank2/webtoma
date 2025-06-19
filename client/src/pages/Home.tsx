@@ -127,6 +127,17 @@ const Home: React.FC = () => {
   });
 
   const handleAutomationClick = async () => {
+    if (!auth?.user || auth.user.credits <= 0) {
+      // Check credits here too
+      addNotificationToList({
+        name: "NO_CREDITS_ERROR",
+        description:
+          "You have no credits left. Please upgrade or wait for reset.",
+        icon: "🚫",
+        color: "#EF4444", // Red
+      });
+      return;
+    }
     if (!formDataInput.trim()) {
       console.warn("Input Required: Please describe what the form should do.");
       // Optionally, display a specific notification for empty input
@@ -147,7 +158,7 @@ const Home: React.FC = () => {
 
   return (
     <div className="size-full flex flex-center relative">
-      <AnimatedList className="mt-14 overflow-y-auto overflow-x-hidden h-[55vh] hide-scrollbar">
+      <AnimatedList className="absolute top-14  -translate-x-1/2 left-1/2 overflow-y-auto overflow-x-hidden h-[55vh] hide-scrollbar">
         {/* displayedNotifications now comes from local state */}
         {displayedNotifications.map((notification, index) => (
           <NotificationItem
@@ -165,7 +176,11 @@ const Home: React.FC = () => {
           <div className="flex flex-row gap-2">
             <Button
               onClick={handleAutomationClick}
-              disabled={isRunning || !auth?.token}
+              disabled={
+                isRunning ||
+                !auth?.token ||
+                (auth?.user?.credits !== undefined && auth.user.credits <= 0)
+              }
               className="flex flex-center px-3 border border-input text-sm hover:bg-black  text-white  bg-black min-w-32"
             >
               {isRunning ? (

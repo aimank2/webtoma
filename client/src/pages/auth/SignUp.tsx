@@ -6,6 +6,7 @@ import { useMutation } from "@tanstack/react-query"; // Import useMutation
 import api from "@/lib/api"; // Import the api instance
 
 function SignUp() {
+  const [name, setName] = useState(""); // Added name state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -42,9 +43,20 @@ function SignUp() {
     if (password !== confirmPassword) {
       // This local validation can remain, or be part of a more complex form validation strategy
       // alert("Passwords do not match."); // Replace with UI error state if preferred
+      signUpMutation.reset(); // Clear previous errors
+      signUpMutation.mutate(
+        { name, email, password },
+        {
+          // Pass name here
+          onError: () => {
+            /* Manually trigger an error state for password mismatch if desired */
+          },
+        }
+      );
+      // Or, set a local error state to display "Passwords do not match"
       return;
     }
-    signUpMutation.mutate({ email, password });
+    signUpMutation.mutate({ name, email, password }); // Pass name here
   };
 
   return (
@@ -52,6 +64,25 @@ function SignUp() {
       <div className="w-full max-w-md p-8 space-y-6 rounded-lg ">
         <h1 className="text-2xl font-bold text-center ">Create Account</h1>
         <form onSubmit={handleSignUp} className="space-y-6">
+          <div>
+            <label
+              htmlFor="name" // Added name input field
+              className="block text-sm font-medium text-gray-700"
+            >
+              Name
+            </label>
+            <input
+              id="name"
+              name="name"
+              type="text"
+              autoComplete="name"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="p-3 border border-gray-950 rounded-2xl w-full text-sm"
+            />
+          </div>
+
           <div>
             <label
               htmlFor="email"
@@ -67,7 +98,7 @@ function SignUp() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="block w-full px-3 py-2 mt-1 text-gray-900 placeholder-gray-500 border border-gray-300 rounded-md shadow-sm appearance-none focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              className="p-3 border border-gray-950 rounded-2xl w-full text-sm"
             />
           </div>
 
@@ -86,7 +117,7 @@ function SignUp() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="block w-full px-3 py-2 mt-1 text-gray-900 placeholder-gray-500 border border-gray-300 rounded-md shadow-sm appearance-none focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              className="p-3 border border-gray-950 rounded-2xl w-full text-sm"
             />
           </div>
 
@@ -105,15 +136,18 @@ function SignUp() {
               required
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="block w-full px-3 py-2 mt-1 text-gray-900 placeholder-gray-500 border border-gray-300 rounded-md shadow-sm appearance-none focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              className="p-3 border border-gray-950 rounded-2xl w-full text-sm"
             />
           </div>
 
           {signUpMutation.isError && (
             <p className="text-sm text-red-600">
-              {signUpMutation.error.response?.data?.message ||
-                signUpMutation.error.message ||
-                "Signup failed"}
+              {/* Ensure you handle the password mismatch error display if not using alert */}
+              {password !== confirmPassword
+                ? "Passwords do not match."
+                : signUpMutation.error.response?.data?.message ||
+                  signUpMutation.error.message ||
+                  "Signup failed"}
             </p>
           )}
 
@@ -136,7 +170,7 @@ function SignUp() {
             to={ROUTES.AUTH}
             className="font-medium text-indigo-600 hover:text-indigo-500"
           >
-            Log In
+            Login
           </Link>
         </p>
       </div>

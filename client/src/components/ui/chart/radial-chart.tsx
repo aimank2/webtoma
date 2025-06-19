@@ -79,7 +79,7 @@ export default function RadialChart({
       <div className="absolute inset-0 flex flex-col items-center justify-center bg-black rounded-full m-4">
         <span className="text-4xl font-bold text-white">
           {value.toLocaleString()}
-          <span className="text-xs">%</span>
+          {/* <span className="text-xs">%</span> */}
         </span>
         <span className="text-sm text-gray-400 mt-1">{label}</span>
       </div>

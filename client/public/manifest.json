@@ -16,7 +16,8 @@
     "activeTab",
     "scripting",
     "identity",
-    "identity.email"
+    "identity.email",
+    "storage"
   ],
   "oauth2": {
     "client_id": "581875153522-44qhjt4693geitf1cis0bf91rkf7dmja.apps.googleusercontent.com",

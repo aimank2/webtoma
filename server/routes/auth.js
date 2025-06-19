@@ -3,6 +3,7 @@ const passport = require("../passport");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs"); // Added bcrypt
 const User = require("../models/User");
+const plansConfig = require('../config/plans'); // Renamed for clarity, or use plans.PLANS directly
 const router = express.Router();
 
 // --- Google OAuth Routes (existing) ---
@@ -39,45 +40,66 @@ router.get(
 
 // POST /api/auth/signup
 router.post("/signup", async (req, res) => {
-  const { email, password, name } = req.body;
-
-  if (!email || !password) {
-    return res
-      .status(400)
-      .json({ message: "Email and password are required." });
-  }
-
   try {
-    let user = await User.findOne({ email });
-    if (user) {
-      return res
-        .status(400)
-        .json({ message: "User already exists with this email." });
+    const { name, email, password } = req.body;
+
+    if (!email || !password || !name) {
+      return res.status(400).json({ message: "Name, email, and password are required." });
     }
 
-    user = new User({
-      email,
-      password, // Hashing will be done by the pre-save hook in User.js
-      name: name || email.split("@")[0], // Default name from email if not provided
+    const normalizedEmail = email.trim().toLowerCase();
+
+    const existingUser = await User.findOne({ email: normalizedEmail });
+    if (existingUser) {
+      return res.status(400).json({ message: "Email already in use." });
+    }
+
+    // REMOVE THIS LINE: const hashedPassword = await bcrypt.hash(password, 10);
+
+    const defaultPlanName = plansConfig.DEFAULT_PLAN;
+    const defaultPlan = plansConfig.PLANS[defaultPlanName];
+    
+    if (!defaultPlan) {
+        console.error(`Default plan '${defaultPlanName}' not found in plans.js.`);
+        return res.status(500).json({ message: "Server configuration error during signup. Default plan not found." });
+    }
+
+    const newUser = new User({
+      name,
+      email: normalizedEmail,
+      password: password, // Pass the PLAIN password here
+      subscription_type: defaultPlanName,
+      credits: defaultPlan.monthly_credit_limit,
+      monthly_credit_limit: defaultPlan.monthly_credit_limit,
+      credits_used_this_month: 0,
+      last_reset: new Date(),
     });
 
-    await user.save();
+    await newUser.save(); // The pre('save') hook in User.js will now hash the plain password
 
     const token = jwt.sign(
-      { id: user._id, name: user.name, email: user.email },
+      { id: newUser._id, name: newUser.name, email: newUser.email },
       process.env.JWT_SECRET,
       { expiresIn: "1d" }
     );
 
-    // Return user object without password
-    const userResponse = user.toObject();
-    delete userResponse.password;
+    res.status(201).json({ 
+        token,
+        user: {
+            id: newUser._id,
+            name: newUser.name,
+            email: newUser.email,
+            avatar: newUser.avatar, // Will be undefined initially for email signup
+            credits: newUser.credits,
+            subscription_type: newUser.subscription_type
+        }
+    });
 
-    res.status(201).json({ token, user: userResponse });
   } catch (error) {
     console.error("Signup error:", error);
-    if (error.code === 11000) {
-      return res.status(400).json({ message: "Email already in use." });
+    // Check for Mongoose duplicate key error (code 11000)
+    if (error.code === 11000 && error.keyPattern && error.keyPattern.email) {
+        return res.status(400).json({ message: "Email already in use (database constraint)." });
     }
     res.status(500).json({ message: "Server error during signup." });
   }
@@ -85,33 +107,27 @@ router.post("/signup", async (req, res) => {
 
 // POST /api/auth/login
 router.post("/login", async (req, res) => {
-  const { email, password } = req.body;
-
-  if (!email || !password) {
-    return res
-      .status(400)
-      .json({ message: "Email and password are required." });
-  }
-
   try {
-    const user = await User.findOne({ email });
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ message: "Email and password are required." });
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = await User.findOne({ email: normalizedEmail });
+
     if (!user) {
-      return res.status(400).json({ message: "Invalid credentials." }); // User not found
+      return res.status(401).json({ message: "Invalid credentials." });
     }
 
-    // If user signed up with Google, they might not have a password set
+    // If user signed up with Google, they might not have a password
     if (!user.password) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "Please log in with Google or set a password for your account.",
-        });
+        return res.status(401).json({ message: "Please log in with Google, as this account was created via Google Sign-In." });
     }
 
-    const isMatch = await user.comparePassword(password);
+    const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ message: "Invalid credentials." }); // Password incorrect
+      return res.status(401).json({ message: "Invalid credentials." });
     }
 
     const token = jwt.sign(
@@ -120,16 +136,24 @@ router.post("/login", async (req, res) => {
       { expiresIn: "1d" }
     );
 
-    // Return user object without password
-    const userResponse = user.toObject();
-    delete userResponse.password;
+    res.json({ 
+        token,
+        user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            avatar: user.avatar,
+            credits: user.credits, // Send credit info on login too
+            subscription_type: user.subscription_type
+        }
+    });
 
-    res.json({ token, user: userResponse });
   } catch (error) {
     console.error("Login error:", error);
     res.status(500).json({ message: "Server error during login." });
   }
 });
+
 
 router.get("/logout", (req, res) => {
   // For JWT, logout is typically handled client-side by deleting the token.
