@@ -32,10 +32,8 @@ function Layout() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <main className="flex-grow w-full p-4">
-        <Outlet />
-      </main>
+    <div className="flex flex-col h-screen">
+      <Outlet />
 
       {isAuthenticated && (
         <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50">

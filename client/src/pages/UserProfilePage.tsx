@@ -1,5 +1,7 @@
 import React from "react";
 import { useAuth } from "@/hooks/useAuth";
+import RadialChart from "@/components/ui/chart/radial-chart";
+import Badge from "@/components/badge";
 
 const UserProfilePage: React.FC = () => {
   const { user, isLoading } = useAuth();
@@ -21,27 +23,35 @@ const UserProfilePage: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col items-center justify-center size-full ">
-      <h1 className="text-3xl font-bold mb-6">User Profile</h1>
-      <div className="flex flex-wrap flex-center  rounded-lg shadow-lg text-white w-full ">
-        {user.avatar && (
-          <img
-            src={user.avatar}
-            alt="User Avatar"
-            className="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-blue-500"
-          />
-        )}
-        <p className="text-lg mb-2">
+    <div className="flex flex-col items-center gap-4 mt-14 size-full ">
+      <h1 className="text-xl font-bold mb-6"> Profile</h1>
+
+      <RadialChart
+        value={75}
+        maxValue={100}
+        label="Credits Left"
+        size={200}
+        strokeWidth={12}
+        className="mt-4"
+      />
+      {user.avatar && (
+        <img
+          src={user.avatar}
+          alt="User Avatar"
+          className="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-blue-500"
+        />
+      )}
+      <div className="flex flex-col gap-2">
+        <p className="text-sm mb-2">
           <span className="font-semibold">Name:</span> {user.name || "N/A"}
         </p>
-        <p className="text-lg mb-2">
+        <p className="text-sm mb-2">
           <span className="font-semibold">Email:</span> {user.email}
         </p>
-        <p className="text-lg">
-          <span className="font-semibold">User ID:</span> {user.id}
-        </p>
-        {/* Add more user details as needed */}
+        <Badge text="Subsbscribed" />
       </div>
+
+      {/* Add more user details as needed */}
     </div>
   );
 };
