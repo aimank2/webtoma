@@ -7,7 +7,7 @@ import {
   storeToken,
 } from "./auth-utils";
 
-const API_BASE_URL = "http://localhost:3001/api"; // Replace with your actual API base URL
+const API_BASE_URL = `${import.meta.env.VITE_APP_API_URL}`; // Replace with your actual API base URL
 
 const api = axios.create({
   baseURL: API_BASE_URL,

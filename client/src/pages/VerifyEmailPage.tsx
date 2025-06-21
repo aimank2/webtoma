@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom"; // Assuming React R
 // import { useAuth } from '../contexts/AuthContext'; // Assuming you have an AuthContext
 
 const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:3001/api";
+  import.meta.env.VITE_API_BASE_URL || `${import.meta.env.VITE_APP_API_URL}`;
 
 const VerifyEmailPage: React.FC = () => {
   const [code, setCode] = useState("");
