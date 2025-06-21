@@ -17,14 +17,6 @@ class OpenAIService {
 
   // New method for mapping with the detailed pre-prompt
   async mapUserInputToForm(userInput, pageStructure) {
-    console.log(
-      "mapUserInputToForm: UserInput:",
-      JSON.stringify(userInput, null, 2)
-    );
-    console.log(
-      "mapUserInputToForm: PageStructure:",
-      JSON.stringify(pageStructure, null, 2)
-    );
     const prePromptTemplate = ` 
  You are an intelligent agent that maps freeform user input to a structured web form for automated filling. 
  
@@ -218,6 +210,62 @@ class OpenAIService {
   // constructPrompt and parseResponse for the older PageStructure format can remain if still needed
   // constructPrompt(userInput, formStructure) { ... }
   // parseResponse(apiResponse, originalPageStructure) { ... }
+
+  // Add this method to the OpenAIService class
+  async classifyIntent(prompt) {
+    try {
+      const response = await this.client.post("/chat/completions", {
+        model: "o4-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a classifier that analyzes Google Sheets automation intents. Respond only with a JSON object containing 'intent', 'confidence', and 'justification' fields.",
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        temperature: 1, //Only the default (1) value is supported
+      });
+
+      if (!response.data.choices || !response.data.choices[0].message) {
+        throw new Error("Invalid response structure from OpenAI");
+      }
+
+      const content = response.data.choices[0].message.content;
+      let result;
+      try {
+        result = JSON.parse(content.trim());
+        if (!result.intent || !result.confidence || !result.justification) {
+          throw new Error("Missing required fields in classification response");
+        }
+        if (
+          ![
+            "data_entry",
+            "chart_generation",
+            "sheet_modification",
+            "unknown",
+          ].includes(result.intent)
+        ) {
+          throw new Error("Invalid intent classification");
+        }
+      } catch (parseError) {
+        throw new Error(
+          `Failed to parse classification response: ${parseError.message}`
+        );
+      }
+
+      return result;
+    } catch (error) {
+      console.error(
+        "OpenAI API Error (classifyIntent):",
+        error.response ? error.response.data : error.message
+      );
+      throw new Error(`Failed to classify intent: ${error.message}`);
+    }
+  }
 }
 
 module.exports = new OpenAIService();

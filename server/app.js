@@ -11,6 +11,7 @@ const health = require("./routes/health");
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/user");
 const requestRoutes = require("./routes/requests");
+const sheetsRoutes = require("./routes/sheets"); // Add this line
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.use("/api/health", health);
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/requests", requestRoutes);
+app.use("/api/sheets", sheetsRoutes); // Add this line
 
 app.listen(port, () => {
   console.log("Server running on port", port);
