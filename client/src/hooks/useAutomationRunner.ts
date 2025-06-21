@@ -8,6 +8,7 @@ import { Item as NotificationItemProps } from "@/components/page/home/Notificati
 import { useSheetDetector } from "./useSheetDetector";
 import { useSheetAutomation } from "./useSheetAutomation";
 import { useSheetMetadata } from "./useSheetMetadata";
+import { useGoogleAuth } from "./useGoogleAuth";
 
 // Define the props for notification handlers
 interface AutomationRunnerProps {
@@ -58,6 +59,7 @@ export const useAutomationRunner = (props: AutomationRunnerProps) => {
   const { isGoogleSheet } = useSheetDetector();
   const { classifyIntent, executeAutomation } = useSheetAutomation();
   const { extractMetadata } = useSheetMetadata();
+  const { authenticateWithGoogle } = useGoogleAuth();
 
   const runAutomation = async (userInput: string) => {
     if (!auth || !auth.token) {
@@ -69,21 +71,31 @@ export const useAutomationRunner = (props: AutomationRunnerProps) => {
     setIsRunning(true);
     try {
       if (isGoogleSheet) {
-        // Google Sheets flow
-        const intentResult = await classifyIntent(userInput);
-        if (intentResult?.intent === "unknown") {
-          throw new Error("Unable to determine automation intent");
-        }
+        // Google Sheets authentication
+        try {
+          const googleToken = await authenticateWithGoogle();
+          console.log("Successfully authenticated with Google", googleToken);
 
-        const sheetMetadata = await extractMetadata();
-        if (!sheetMetadata) {
-          throw new Error("Failed to extract sheet metadata");
-        }
+          // Google Sheets flow
+          const intentResult = await classifyIntent(userInput);
+          if (intentResult?.intent === "unknown") {
+            throw new Error("Unable to determine automation intent");
+          }
 
-        await executeAutomation(intentResult?.intent || "unknown", userInput);
-        onSuccess();
+          const sheetMetadata = await extractMetadata();
+          if (!sheetMetadata) {
+            throw new Error("Failed to extract sheet metadata");
+          }
+
+          await executeAutomation(intentResult?.intent || "unknown", userInput);
+          onSuccess();
+        } catch (googleError) {
+          console.error("Google authentication error:", googleError);
+          onError("Failed to authenticate with Google Sheets");
+          return;
+        }
       } else {
-        // Form automation flow
+        // Existing form automation flow
         console.log("Starting form automation...");
         const htmlContent = await extractHtml();
         const structuredForm = await structureForm(htmlContent);
@@ -112,8 +124,5 @@ export const useAutomationRunner = (props: AutomationRunnerProps) => {
     }
   };
 
-  return {
-    runAutomation,
-    isRunning,
-  };
+  return { runAutomation, isRunning };
 };
