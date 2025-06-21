@@ -40,7 +40,7 @@ export const useAiFormFiller = () => {
 
     try {
       const apiResponse = await fetch(
-        "http://localhost:3001/api/requests/openai/map-form", // This URL might need to be configurable
+        `${import.meta.env.VITE_APP_API_URL}/requests/openai/map-form`, // This URL might need to be configurable
         {
           method: "POST",
           headers: {

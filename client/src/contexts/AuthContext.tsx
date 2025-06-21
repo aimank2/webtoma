@@ -75,9 +75,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
 
   const fetchUserProfile = useCallback(async (jwtToken: string) => {
     try {
-      const response = await fetch("http://localhost:3001/api/user/profile", {
-        headers: { Authorization: `Bearer ${jwtToken}` },
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_APP_API_URL}/user/profile`,
+        {
+          headers: { Authorization: `Bearer ${jwtToken}` },
+        }
+      );
       if (!response.ok) {
         throw new Error(
           "Some kind of error occurred<br/> Please try again later user profile"
