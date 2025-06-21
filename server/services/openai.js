@@ -17,100 +17,68 @@ class OpenAIService {
 
   // New method for mapping with the detailed pre-prompt
   async mapUserInputToForm(userInput, pageStructure) {
-    console.log(
-      "mapUserInputToForm: UserInput:",
-      JSON.stringify(userInput, null, 2)
-    );
-    console.log(
-      "mapUserInputToForm: PageStructure:",
-      JSON.stringify(pageStructure, null, 2)
-    );
-    const prePromptTemplate = ` 
- You are an intelligent agent that maps freeform user input to a structured web form for automated filling. 
- 
- ## Context: 
- You are given two things: 
- 1. **UserInput** – A freeform string. It may include names, emails, passwords, checkbox preferences, messages, or other details. The input may be ordered or unordered, formal or casual. 
- 2. **PageStructure** – A parsed and typed DOM representation of a form (see below). It contains metadata about inputs, textareas, checkboxes, selects, buttons, and other elements with detailed field attributes. 
- 
- ## Instructions: 
- - Parse the user input and extract all possible values. 
- - For each element in the "formStructure" (from PageStructure.formStructure), assign a value or status based on its type, label, and attributes. 
- - If the field type is: 
-   - **input** (text, email, password, etc.): extract a suitable value. 
-   - **textarea**: extract meaningful long-form content (if present). 
-   - **checkbox**: infer intent from user input (e.g., “subscribe”, “yes”, “opt-in” → true). 
-   - **select** or **radio**: infer selected value from user input matching available options. 
-   - **button**: set type and status, but no need to map values. 
- - If no matching user data is found for a field, leave the value as "null" or "" and mark its status as "waiting". 
- - Each field should include: "type", "name", "value" (or "checked"), "label" (if available), and "status". 
- 
- ## Inputs: 
- - UserInput: ${userInput} 
- - PageStructure (simplified): ${JSON.stringify(pageStructure, null, 2)} 
- 
- ## Output Format: 
- Return a valid JSON of the following structure: 
- { 
-   "status": "partial" | "completed" | "error", 
-   "fields": [ 
-     { 
-       "type": "input" | "email" | "password" | "checkbox" | "textarea" | "select" | "radio" | "button", 
-       "name": "fieldName", 
-       "label": "Optional field label", 
-       "value": "captured value" | null, 
-       "checked": true | false, // Only for checkbox 
-       "status": "filled" | "waiting" | "error", 
-       "required": true | false, 
-       "placeholder": "optional placeholder", 
-       "options": [ // only for select or radio 
-         { "label": "Option Label", "value": "optionValue" } 
-       ] 
-     } 
-   ] 
- } 
-    `;
+    const systemMessage = {
+      role: "system",
+      content: `You are an AI that maps user input to web form fields. When generating random values, ensure they are realistic and match field types:
+- email: valid format like user123@example.com
+- password: strong password (8+ chars, mixed case, numbers, symbols)
+- text: contextual text based on field name
+- number: within min/max range if specified
+- tel: valid phone format
+- date: reasonable date
+- checkbox: true/false
+- select/radio: valid option from choices
+- textarea: relevant paragraph
+
+Always return valid JSON matching this schema exactly:
+{
+  "status": "completed",
+  "fields": [{
+    "type": "string",
+    "name": "string",
+    "value": "string",
+    "checked": false,
+    "status": "filled"
+  }]
+}`
+    };
+
+    const userMessage = {
+      role: "user",
+      content: `Map the following user input to the form fields. ${userInput.toLowerCase().includes("random") ? "Generate appropriate random values based on each field's type and context." : ""}
+
+Form structure:
+${JSON.stringify(pageStructure, null, 2)}
+
+User input:
+${userInput}`
+    };
 
     try {
-      console.log("mapUserInputToForm: Sending request to OpenAI...");
       const response = await this.client.post("/chat/completions", {
-        model: "o4-mini", // Ensure this model provides usage stats. gpt-3.5-turbo and gpt-4 models do.
-        messages: [
-          {
-            role: "user",
-            content: prePromptTemplate,
-          },
-        ],
-        temperature: 1,
+        model: "gpt-3.5-turbo-0125",
+        messages: [systemMessage, userMessage],
+        temperature: 0.7,
+        response_format: { type: "json_object" }
       });
 
-      console.log(
-        "mapUserInputToForm: OpenAI API Response Data:",
-        JSON.stringify(response.data, null, 2)
-      );
+      if (!response.data?.choices?.[0]?.message?.content) {
+        throw new Error("Invalid API response structure");
+      }
 
-      const mappedForm = this.parseMappedFormResponse(response.data);
+      const mappedForm = JSON.parse(response.data.choices[0].message.content);
 
-      // IMPORTANT: Include usage data in the return
+      if (!mappedForm?.status || !Array.isArray(mappedForm?.fields)) {
+        throw new Error("Invalid form mapping structure");
+      }
+
       return {
         mappedForm,
-        usage: response.data.usage, // Assuming 'usage' is directly available in response.data
+        usage: response.data.usage
       };
     } catch (error) {
-      console.error(
-        "OpenAI API Error (mapUserInputToForm):",
-        error.response ? error.response.data : error.message
-      );
-      let errorMessage = "Failed to map user input to form with OpenAI.";
-      if (
-        error.response &&
-        error.response.data &&
-        error.response.data.error &&
-        error.response.data.error.message
-      ) {
-        errorMessage += ` Details: ${error.response.data.error.message}`;
-      }
-      throw new Error(errorMessage);
+      console.error("OpenAI API Error:", error);
+      throw new Error(`Failed to map user input to form with OpenAI. ${error.message}`);
     }
   }
 
