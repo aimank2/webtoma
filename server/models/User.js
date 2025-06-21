@@ -26,6 +26,11 @@ const userSchema = new mongoose.Schema({
   credits_used_this_month: { type: Number, default: 0 },
   last_reset: { type: Date, default: Date.now },
 
+  // Fields for email verification
+  isVerified: { type: Boolean, default: false },
+  verificationCode: { type: String, sparse: true }, // sparse: true because it will be null after verification
+  verificationCodeExpires: { type: Date },
+
   // Optional payment integration fields
   // payment_customer_id: { type: String, sparse: true },
   // billing_history: [{

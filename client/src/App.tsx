@@ -8,6 +8,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import "./App.css";
 import UserProfilePage from "./pages/UserProfilePage"; // Import the new UserProfilePage
 import RootLayout from "./layouts/RootLayout"; // Import RootLayout
+import VerifyEmailPage from "./pages/VerifyEmailPage";
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
         {/* Public routes */}
         <Route path={ROUTES.AUTH} element={<SignIn />} />
         <Route path={ROUTES.SIGNUP} element={<SignUpPage />} />
+        <Route path={ROUTES.VERIFY_EMAIL} element={<VerifyEmailPage />} />
 
         {/* Protected routes: all wrapped by Layout and ProtectedRoute */}
         <Route element={<ProtectedRoute />}>

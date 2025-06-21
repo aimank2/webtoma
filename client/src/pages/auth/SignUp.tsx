@@ -18,10 +18,20 @@ function SignUp() {
 
   const signUpMutation = useMutation({
     mutationFn: (newUser: any) => api.post("/auth/signup", newUser),
-    onSuccess: (data) => {
-      console.log("Signup successful:", data.data); // Assuming data.data from axios response
-      // alert("Signup successful! Please log in.");
-      navigate(ROUTES.AUTH); // Navigate to login page after signup
+    onSuccess: (response) => { // Changed 'data' to 'response' to match typical axios structure
+      // The server now sends { message: string, email: string } on success
+      const responseData = response.data; // Assuming 'api' is an axios instance
+      console.log("Signup successful:", responseData);
+      
+      // IMPORTANT: Redirect to verification page with email as query param
+      if (responseData.email) {
+        // alert(responseData.message); // Optional: show success message
+        navigate(`${ROUTES.VERIFY_EMAIL}?email=${responseData.email}`); // e.g., navigate('/verify?email=user@example.com')
+      } else {
+        // Fallback if email is not in response, though it should be
+        // alert(responseData.message || "Signup successful! Please check your email.");
+        navigate(ROUTES.AUTH); // Or a generic success page
+      }
     },
     onError: (error: any) => {
       const errorMessage =
@@ -29,34 +39,25 @@ function SignUp() {
         error.message ||
         "An unknown error occurred during signup.";
       console.error("Signup error:", errorMessage);
-      // For displaying the error, you'll need a state variable if you remove error
-      // For now, logging it. Consider adding a state for UI feedback.
-      // alert(errorMessage); // Simple alert, replace with a proper UI notification
+      // alert(errorMessage); // Display error to user
     },
   });
 
   const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // It's good practice to clear previous errors from mutation if you're not using a separate state
-    // signUpMutation.reset(); // Optional: if you want to clear error on new submit attempt
 
     if (password !== confirmPassword) {
-      // This local validation can remain, or be part of a more complex form validation strategy
-      // alert("Passwords do not match."); // Replace with UI error state if preferred
-      signUpMutation.reset(); // Clear previous errors
-      signUpMutation.mutate(
-        { name, email, password },
-        {
-          // Pass name here
-          onError: () => {
-            /* Manually trigger an error state for password mismatch if desired */
-          },
-        }
-      );
-      // Or, set a local error state to display "Passwords do not match"
+      // Handle password mismatch locally before calling mutation
+      // You might want to set a local error state to display this in the UI
+      signUpMutation.reset(); // Clear previous mutation state if any
+      // For example, set a local error state:
+      // setFormError("Passwords do not match."); 
+      alert("Passwords do not match."); // Simple alert for now
       return;
     }
-    signUpMutation.mutate({ name, email, password }); // Pass name here
+    // Clear any local form error before submitting
+    // setFormError(""); 
+    signUpMutation.mutate({ name, email, password });
   };
 
   return (
