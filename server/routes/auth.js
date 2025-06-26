@@ -297,64 +297,59 @@ router.get("/logout", (req, res) => {
 });
 
 // New route to handle access_token-based authentication
-// THIS ROUTE (`/google/token`) IS NO LONGER NEEDED FOR THE BACKEND-ONLY FLOW
-// You can comment it out or remove it if you are fully switching.
-/*
-router.post('/google/token', async (req, res) => {
-  const { accessToken } = req.body;
-  if (!accessToken) {
-    return res.status(400).json({ message: 'Access token is required' });
-  }
+// Add these imports at the top of the file
+const { OAuth2Client } = require('google-auth-library');
 
+// Initialize the OAuth client
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+// Add this new route
+router.post('/google', async (req, res) => {
   try {
-    // Verify access token by calling Google's tokeninfo endpoint
-    const googleResponse = await fetch(`https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=${accessToken}`);
-    const tokenInfo = await googleResponse.json();
-
-    if (tokenInfo.error || !tokenInfo.sub) {
-      console.error('Invalid Google access token:', tokenInfo.error_description || 'No sub claim');
-      return res.status(401).json({ message: 'Invalid Google access token' });
-    }
-
-    if (tokenInfo.aud !== process.env.GOOGLE_CLIENT_ID_WEB) { // Use GOOGLE_CLIENT_ID_WEB for web app client
-        console.error('Token audience mismatch:', tokenInfo.aud, 'Expected:', process.env.GOOGLE_CLIENT_ID_WEB);
-        return res.status(401).json({ message: 'Token audience mismatch' });
-    }
-
-    const googleId = tokenInfo.sub;
-    const email = tokenInfo.email;
-    const userInfoResponse = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
-        headers: { Authorization: `Bearer ${accessToken}` },
+    const { token } = req.body;
+    
+    // Verify the Google token
+    const ticket = await client.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID
     });
-    const profileData = await userInfoResponse.json();
-
-    const name = profileData.name || email;
-    const avatar = profileData.picture;
-
-    let user = await User.findOne({ googleId: googleId });
-
+    
+    const payload = ticket.getPayload();
+    
+    // Find or create user in your database
+    let user = await User.findOne({ email: payload.email });
+    
     if (!user) {
       user = await User.create({
-        googleId: googleId,
-        name: name,
-        email: email,
-        avatar: avatar,
+        googleId: payload.sub,
+        email: payload.email,
+        name: payload.name,
+        avatar: payload.picture,
+        isVerified: true // Google accounts are pre-verified
       });
     }
-
-    const appToken = jwt.sign(
-      { id: user._id, name: user.name, email: user.email },
+    
+    // Generate JWT
+    const jwtToken = jwt.sign(
+      { id: user._id, email: user.email, name: user.name },
       process.env.JWT_SECRET,
       { expiresIn: '1d' }
     );
-
-    res.json({ token: appToken, user });
-
+    
+    res.json({
+      token: jwtToken,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar
+      }
+    });
+    
   } catch (error) {
-    console.error('Error verifying Google token:', error);
-    res.status(500).json({ message: 'Internal server error during token verification' });
+    console.error('Google authentication error:', error);
+    res.status(401).json({ message: 'Authentication failed' });
   }
 });
-*/
 
 module.exports = router;
