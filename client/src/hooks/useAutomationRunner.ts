@@ -1,12 +1,14 @@
-// ... existing code ...
 import { AuthContext } from "@/contexts/AuthContext";
 import { useContext, useState } from "react";
 import { useAiFormFiller } from "./useAiFormFiller";
-// import { useAutomationNotifications } from "./useAutomationNotifications"; // Removed
 import { useFormInjector } from "./useFormInjector";
 import { useFormStructurer } from "./useFormStructurer";
 import { useHtmlExtractor } from "./useHtmlExtractor";
-import { Item as NotificationItemProps } from "@/components/page/home/NotificationItem"; // Added for type safety
+import { Item as NotificationItemProps } from "@/components/page/home/NotificationItem";
+import { useSheetDetector } from "./useSheetDetector";
+import { useSheetAutomation } from "./useSheetAutomation";
+import { useSheetMetadata } from "./useSheetMetadata";
+import { useGoogleAuth } from "./useGoogleAuth";
 
 // Define the props for notification handlers
 interface AutomationRunnerProps {
@@ -16,7 +18,7 @@ interface AutomationRunnerProps {
   onAuthError: () => void;
   onSuccess: () => void;
   onError: (message?: string) => void;
-  onAddNotification: (message: string, type: 'add' | 'replace') => void; // Updated signature
+  onAddNotification: (message: string, type: "add" | "replace") => void; // Updated signature
   onReplaceNotification: (notification: NotificationItemProps) => void;
   onClearNotifications: () => void;
 }
@@ -50,93 +52,77 @@ export const useAutomationRunner = (props: AutomationRunnerProps) => {
 
   const auth = useContext(AuthContext);
   const [isRunning, setIsRunning] = useState(false);
-
-  // Removed internal useAutomationNotifications call
-
   const { extractHtml } = useHtmlExtractor();
   const { structureForm } = useFormStructurer();
   const { sendToAI } = useAiFormFiller();
   const { injectFields } = useFormInjector();
+  const { isGoogleSheet } = useSheetDetector();
+  const { classifyIntent, executeAutomation } = useSheetAutomation();
+  const { extractMetadata } = useSheetMetadata();
+  const { authenticateWithGoogle } = useGoogleAuth();
 
   const runAutomation = async (userInput: string) => {
-    // Input validation is now handled in Home.tsx before calling runAutomation
-    // Auth check
     if (!auth || !auth.token) {
       console.log("Authentication Error: User not logged in or token expired.");
-      onAuthError(); // Call the handler from Home.tsx
+      onAuthError();
       return;
     }
 
     setIsRunning(true);
-    // Clear any previous notifications and schedule initial ones via Home.tsx callbacks
-    // onClearNotifications(); // Home.tsx's handleAutomationClick already clears.
-    // The FORM_FILLING_NOTIFICATIONS constant is defined in Home.tsx and passed to onScheduleInitialNotifications there.
-    // This call is now made from Home.tsx before runAutomation, or as the first step here if preferred.
-    // For now, assuming Home.tsx calls its `scheduleNotifications(INITIAL_AUTOMATION_NOTIFICATIONS)`
-    // which in turn calls the `onScheduleInitialNotifications` passed to this hook.
-    // To be very explicit as per user request:
-    // onScheduleInitialNotifications should be called by Home.tsx, which then calls the function passed here.
-    // If Home.tsx passes its own `scheduleNotifications` as `onScheduleInitialNotifications`, that's fine.
-    // The key is that the initial sequence starts immediately.
-    // Let's assume Home.tsx's `useAutomationRunner` call looks like:
-    // useAutomationRunner({ onScheduleInitialNotifications: () => scheduleNotifications(INITIAL_AUTOMATION_NOTIFICATIONS), ... })
-    // So, when runAutomation is called, Home.tsx has already (or will immediately) call its local scheduleNotifications.
-    // To ensure it's the *very first* thing as per user request, Home.tsx should call its local `scheduleNotifications`
-    // *before* calling `runAutomation(formDataInput)`.
-    // The `onScheduleInitialNotifications` prop is more for the hook to trigger it if it were managing the constants.
-    // Given Home.tsx now owns the constants, it's more direct for Home.tsx to initiate this.
-
-    // However, to strictly follow the user's checklist for the hook:
-    // If `FORM_FILLING_NOTIFICATIONS` were defined here or passed in:
-    // onScheduleInitialNotifications(FORM_FILLING_NOTIFICATIONS_FROM_SOMEWHERE);
-    // Since Home.tsx defines them, it's cleaner for Home.tsx to call its own `scheduleNotifications`
-    // and pass that function as `onScheduleInitialNotifications`.
-    // The current setup in the previous Home.tsx diff already does this effectively.
-
     try {
-      console.log("Starting automation...");
+      if (isGoogleSheet) {
+        // Google Sheets authentication
+        try {
+          const googleToken = await authenticateWithGoogle();
+          console.log("Successfully authenticated with Google", googleToken);
 
-      // 1. HTML Extraction
-      console.log("Step 1: Extracting HTML...");
-      // Notification for this step is part of the initial scheduled sequence from Home.tsx
-      const htmlContent = await extractHtml();
-      console.log("HTML extracted successfully.");
+          // Google Sheets flow
+          const intentResult = await classifyIntent(userInput);
+          if (intentResult?.intent === "unknown") {
+            throw new Error("Unable to determine automation intent");
+          }
 
-      // 2. Structuring Form
-      console.log("Step 2: Structuring form data...");
-      // Notification for this step is part of the initial scheduled sequence from Home.tsx
-      const structuredForm = await structureForm(htmlContent);
-      console.log("Form data structured successfully.");
+          const sheetMetadata = await extractMetadata();
+          if (!sheetMetadata) {
+            throw new Error("Failed to extract sheet metadata");
+          }
 
-      // 3. Sending to AI
-      console.log("Step 3: Sending data to AI...");
-      // Notification for this step is part of the initial scheduled sequence from Home.tsx
-      const aiData = await sendToAI(userInput, structuredForm);
-      console.log("AI response received.");
-      onClearNotifications(); 
-      // Pass description as message, and type as 'replace' or 'add'
-      // Assuming AI_RESPONSE_RECEIVED_NOTIFICATION should replace the last one (e.g., "Waiting for AI")
-      onAddNotification(AI_RESPONSE_RECEIVED_NOTIFICATION.description, 'replace');
+          await executeAutomation(intentResult?.intent || "unknown", userInput);
+          onSuccess();
+        } catch (googleError) {
+          console.error("Google authentication error:", googleError);
+          onError("Failed to authenticate with Google Sheets");
+          return;
+        }
+      } else {
+        // Existing form automation flow
+        console.log("Starting form automation...");
+        const htmlContent = await extractHtml();
+        const structuredForm = await structureForm(htmlContent);
+        const aiData = await sendToAI(userInput, structuredForm);
 
-      console.log("Step 4: Injecting form values...");
-      // Assuming INJECTING_FORM_VALUES_NOTIFICATION should be added as a new one
-      onAddNotification(INJECTING_FORM_VALUES_NOTIFICATION.description, 'add'); 
-      await injectFields(aiData);
-      console.log("Form values injected successfully.");
+        onClearNotifications();
+        onAddNotification(
+          AI_RESPONSE_RECEIVED_NOTIFICATION.description,
+          "replace"
+        );
+        onAddNotification(
+          INJECTING_FORM_VALUES_NOTIFICATION.description,
+          "add"
+        );
 
-      onSuccess(); 
+        await injectFields(aiData);
+        onSuccess();
+      }
     } catch (error: any) {
       console.error("Automation error:", error);
       const errorMessage =
         error.message || "An unexpected error occurred during automation.";
-      onError(errorMessage); // Call error handler from Home.tsx
+      onError(errorMessage);
     } finally {
       setIsRunning(false);
     }
   };
 
-  return {
-    runAutomation,
-    isRunning,
-  };
+  return { runAutomation, isRunning };
 };

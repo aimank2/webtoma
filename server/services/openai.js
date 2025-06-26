@@ -40,18 +40,22 @@ Always return valid JSON matching this schema exactly:
     "checked": false,
     "status": "filled"
   }]
-}`
+}`,
     };
 
     const userMessage = {
       role: "user",
-      content: `Map the following user input to the form fields. ${userInput.toLowerCase().includes("random") ? "Generate appropriate random values based on each field's type and context." : ""}
+      content: `Map the following user input to the form fields. ${
+        userInput.toLowerCase().includes("random")
+          ? "Generate appropriate random values based on each field's type and context."
+          : ""
+      }
 
 Form structure:
 ${JSON.stringify(pageStructure, null, 2)}
 
 User input:
-${userInput}`
+${userInput}`,
     };
 
     try {
@@ -59,7 +63,7 @@ ${userInput}`
         model: "gpt-3.5-turbo-0125",
         messages: [systemMessage, userMessage],
         temperature: 0.7,
-        response_format: { type: "json_object" }
+        response_format: { type: "json_object" },
       });
 
       if (!response.data?.choices?.[0]?.message?.content) {
@@ -74,11 +78,13 @@ ${userInput}`
 
       return {
         mappedForm,
-        usage: response.data.usage
+        usage: response.data.usage,
       };
     } catch (error) {
       console.error("OpenAI API Error:", error);
-      throw new Error(`Failed to map user input to form with OpenAI. ${error.message}`);
+      throw new Error(
+        `Failed to map user input to form with OpenAI. ${error.message}`
+      );
     }
   }
 
@@ -186,6 +192,62 @@ ${userInput}`
   // constructPrompt and parseResponse for the older PageStructure format can remain if still needed
   // constructPrompt(userInput, formStructure) { ... }
   // parseResponse(apiResponse, originalPageStructure) { ... }
+
+  // Add this method to the OpenAIService class
+  async classifyIntent(prompt) {
+    try {
+      const response = await this.client.post("/chat/completions", {
+        model: "o4-mini",
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are a classifier that analyzes Google Sheets automation intents. Respond only with a JSON object containing 'intent', 'confidence', and 'justification' fields.",
+          },
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+        temperature: 1, //Only the default (1) value is supported
+      });
+
+      if (!response.data.choices || !response.data.choices[0].message) {
+        throw new Error("Invalid response structure from OpenAI");
+      }
+
+      const content = response.data.choices[0].message.content;
+      let result;
+      try {
+        result = JSON.parse(content.trim());
+        if (!result.intent || !result.confidence || !result.justification) {
+          throw new Error("Missing required fields in classification response");
+        }
+        if (
+          ![
+            "data_entry",
+            "chart_generation",
+            "sheet_modification",
+            "unknown",
+          ].includes(result.intent)
+        ) {
+          throw new Error("Invalid intent classification");
+        }
+      } catch (parseError) {
+        throw new Error(
+          `Failed to parse classification response: ${parseError.message}`
+        );
+      }
+
+      return result;
+    } catch (error) {
+      console.error(
+        "OpenAI API Error (classifyIntent):",
+        error.response ? error.response.data : error.message
+      );
+      throw new Error(`Failed to classify intent: ${error.message}`);
+    }
+  }
 }
 
 module.exports = new OpenAIService();

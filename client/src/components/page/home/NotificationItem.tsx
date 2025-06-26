@@ -3,7 +3,7 @@ export interface Item {
   name: string;
   description: string;
   icon: string;
-  color: string;
+  color?: string;
   time: string;
 }
 const NotificationItem = ({ name, description, icon, color, time }: Item) => {

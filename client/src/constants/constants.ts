@@ -61,7 +61,6 @@ export const AUTOMATION_ERROR_NOTIFICATION: Item = {
   description: "Something went wrong during automation.",
   time: "now",
   icon: "⚠️",
-  color: "#ef4444", // red-500
 };
 export const INITIAL_NOTIFICATION_MESSAGE = "Waking up the bots...";
 export const WAITING_FOR_AI_MESSAGE = "AI is deep in thought...";
@@ -99,7 +98,7 @@ export const INITIAL_NOTIFICATIONS: Omit<any, "time">[] = [
 export const SUCCESS_NOTIFICATION_BASE: Omit<any, "time" | "description"> = {
   name: "SUCCESS",
   icon: "✅",
-  color: "#10B981",
+  // color: "#10B981",
 };
 
 export const ERROR_NOTIFICATION_BASE: Omit<any, "time" | "description"> = {

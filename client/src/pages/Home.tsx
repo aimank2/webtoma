@@ -196,7 +196,6 @@ const Home: React.FC = () => {
         name: "INPUT_ERROR",
         description: "Please provide instructions for the automation.",
         icon: "⚠️",
-        color: "#F59E0B", // Amber
       });
       return;
     }
