@@ -6,7 +6,6 @@ export const useLogin = () =>
   useMutation({
     mutationFn: login,
     onSuccess: (data) => {
-      console.log(data);
       setToken(data.token);
     },
   });
