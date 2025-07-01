@@ -1,10 +1,12 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useRouter } from "next/navigation";
+import { Button } from "./ui/button";
+import { useGoogleToken } from "@/context/GoogleTokenContext";
 
 export default function GoogleInit() {
   const router = useRouter();
+  const { setGoogleToken } = useGoogleToken();
 
   const handleLogin = () => {
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!;
@@ -16,7 +18,7 @@ export default function GoogleInit() {
         const accessToken = tokenResponse.access_token;
         console.log("✅ Real access token:", accessToken);
         if (accessToken) {
-          localStorage.setItem("google_access_token", accessToken);
+          setGoogleToken(accessToken); // Store in context and sessionStorage
           router.push("/sheets");
         }
       },
@@ -27,7 +29,7 @@ export default function GoogleInit() {
 
   return (
     <div>
-      <button onClick={handleLogin}>Login with Google & Continue</button>
+      <Button onClick={handleLogin}>Allow Google Sheet Access</Button>
     </div>
   );
 }

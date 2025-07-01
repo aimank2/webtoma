@@ -1,6 +1,5 @@
 const express = require("express");
 const mongoose = require("mongoose");
-const passport = require("passport");
 const session = require("express-session");
 const jwt = require("jsonwebtoken");
 const cors = require("cors");
@@ -19,9 +18,6 @@ app.use(express.json());
 app.use(
   session({ secret: "your_secret", resave: false, saveUninitialized: true })
 );
-
-app.use(passport.initialize());
-app.use(passport.session());
 
 mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,

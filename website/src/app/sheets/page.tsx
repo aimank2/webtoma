@@ -8,17 +8,26 @@ import {
   useUpdateValues,
   useDeleteValues,
 } from "@/hooks/useSheet";
+import { useGoogleToken } from "@/context/GoogleTokenContext";
+import GoogleInit from "@/components/GoogleInit";
 
 export default function SheetsPage() {
+  const { googleToken, clearGoogleToken } = useGoogleToken();
+
   const [sheetId, setSheetId] = useState<string>("");
-  const { mutateAsync: createSheet, isPending: creating } = useCreateSheet();
-  const { mutateAsync: appendRows, isPending: appending } = useAppendRows();
+  const { mutateAsync: createSheet, isPending: creating } =
+    useCreateSheet(googleToken);
+  const { mutateAsync: appendRows, isPending: appending } =
+    useAppendRows(googleToken);
   const { data: values, isLoading: loadingValues } = useGetValues(
+    googleToken,
     sheetId,
     "Sheet1!A1:B10"
   );
-  const { mutateAsync: updateValues, isPending: updating } = useUpdateValues();
-  const { mutateAsync: deleteValues, isPending: clearing } = useDeleteValues();
+  const { mutateAsync: updateValues, isPending: updating } =
+    useUpdateValues(googleToken);
+  const { mutateAsync: deleteValues, isPending: clearing } =
+    useDeleteValues(googleToken);
   const [status, setStatus] = useState<string>("Waiting...");
 
   const handleCreate = async () => {
@@ -83,10 +92,40 @@ export default function SheetsPage() {
       setStatus("❌ Failed to clear values");
     }
   };
+  // const handleGAPIInit = () => {
+  //   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!;
+
+  //   const tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
+  //     client_id: clientId,
+  //     scope: "https://www.googleapis.com/auth/spreadsheets",
+  //     callback: (tokenResponse: any) => {
+  //       const accessToken = tokenResponse.access_token;
+  //       console.log("✅ Real access token:", accessToken);
+  //       if (accessToken) {
+  //         localStorage.setItem("google_access_token", accessToken);
+  //       }
+  //     },
+  //   });
+
+  //   tokenClient.requestAccessToken();
+  // };
+  // useEffect(() => {
+  //   handleGAPIInit();
+  // }, []);
 
   return (
     <div>
+      <GoogleInit />
       <h1>Google Sheets Page (Hooks CRUD Demo)</h1>
+      <div style={{ marginBottom: 16 }}>
+        <strong>Access Token:</strong>{" "}
+        {googleToken ? googleToken : "Not logged in"}
+        {googleToken && (
+          <button style={{ marginLeft: 16 }} onClick={clearGoogleToken}>
+            Logout
+          </button>
+        )}
+      </div>
       <button onClick={handleCreate} disabled={creating}>
         Create Sheet
       </button>
