@@ -40,7 +40,7 @@ export function LoginForm({
                     try {
                       const { token } = await mutateAsync(idToken);
                       setToken(token);
-                      router.push("/sheets");
+                      router.push("/dashboard");
                     } catch (e) {
                       console.error("❌ Backend login failed", e);
                     }

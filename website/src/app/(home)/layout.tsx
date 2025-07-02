@@ -1,8 +1,25 @@
+"use client";
 import { AppSidebar } from "@/components/sidebar/app-sidebar";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import React from "react";
+import { getToken } from "@/utils/token";
+import { useRouter } from "next/navigation";
+import React, { useEffect, useState } from "react";
 
-const layout = ({ children }) => {
+const Layout = ({ children }) => {
+  const router = useRouter();
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    const token = getToken();
+    if (!token) {
+      router.replace("/login");
+    } else {
+      setChecked(true);
+    }
+  }, [router]);
+
+  if (!checked) return null; // Or a loading spinner
+
   return (
     <SidebarProvider
       style={
@@ -18,4 +35,4 @@ const layout = ({ children }) => {
   );
 };
 
-export default layout;
+export default Layout;

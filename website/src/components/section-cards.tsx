@@ -27,10 +27,10 @@ export function SectionCards() {
         <CardHeader>
           <CardDescription className="flex items-center gap-2">
             <FileSpreadsheet className="text-green-600 dark:text-green-400 size-4" />
-            Google Sheets Automation
+            Sheets AI
           </CardDescription>
           <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-            Smart Sheet Manager
+            Smart Sheet AI
           </CardTitle>
           <CardAction>
             <Badge
