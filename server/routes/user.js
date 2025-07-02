@@ -7,7 +7,9 @@ const plans = require("../config/plans"); // Import plans to get default limits
 // GET user profile (replaces existing /me or can be a new /profile route)
 router.get("/profile", authenticateJWT, async (req, res) => {
   try {
-    const userFromDb = await User.findById(req.user.id).select("-password"); // Exclude password
+    console.log("req.user.id:", req.user.id);
+    const userFromDb = await User.findById(req.user.id).select("-password");
+    console.log("userFromDb:", userFromDb);
     if (!userFromDb) {
       return res.status(404).json({ message: "User not found" });
     }

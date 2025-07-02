@@ -13,6 +13,7 @@ import { Label } from "@/components/ui/label";
 import { GoogleLogin } from "@react-oauth/google";
 import { useGoogleLoginMutation } from "@/hooks/useAuth";
 import { useRouter } from "next/navigation";
+import { setToken } from "@/utils/token";
 
 export function LoginForm({
   className,
@@ -38,7 +39,7 @@ export function LoginForm({
                     if (!idToken) return;
                     try {
                       const { token } = await mutateAsync(idToken);
-                      localStorage.setItem("jwt", token);
+                      setToken(token);
                       router.push("/sheets");
                     } catch (e) {
                       console.error("❌ Backend login failed", e);

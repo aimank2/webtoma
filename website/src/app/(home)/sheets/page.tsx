@@ -10,6 +10,7 @@ import {
 } from "@/hooks/useSheet";
 import { useGoogleToken } from "@/context/GoogleTokenContext";
 import GoogleInit from "@/components/GoogleInit";
+import SheetActions from "@/components/sheet-action-card";
 
 export default function SheetsPage() {
   const { googleToken, clearGoogleToken } = useGoogleToken();
@@ -92,26 +93,6 @@ export default function SheetsPage() {
       setStatus("❌ Failed to clear values");
     }
   };
-  // const handleGAPIInit = () => {
-  //   const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!;
-
-  //   const tokenClient = (window as any).google.accounts.oauth2.initTokenClient({
-  //     client_id: clientId,
-  //     scope: "https://www.googleapis.com/auth/spreadsheets",
-  //     callback: (tokenResponse: any) => {
-  //       const accessToken = tokenResponse.access_token;
-  //       console.log("✅ Real access token:", accessToken);
-  //       if (accessToken) {
-  //         localStorage.setItem("google_access_token", accessToken);
-  //       }
-  //     },
-  //   });
-
-  //   tokenClient.requestAccessToken();
-  // };
-  // useEffect(() => {
-  //   handleGAPIInit();
-  // }, []);
 
   return (
     <div>
@@ -126,18 +107,18 @@ export default function SheetsPage() {
           </button>
         )}
       </div>
-      <button onClick={handleCreate} disabled={creating}>
-        Create Sheet
-      </button>
-      <button onClick={handleAppend} disabled={appending || !sheetId}>
-        Append Rows
-      </button>
-      <button onClick={handleUpdate} disabled={updating || !sheetId}>
-        Update Values
-      </button>
-      <button onClick={handleClear} disabled={clearing || !sheetId}>
-        Clear Values
-      </button>
+      <div className="w-[400px]">
+        <SheetActions
+          handleCreate={handleCreate}
+          handleAppend={handleAppend}
+          handleUpdate={handleUpdate}
+          handleClear={handleClear}
+          loadingCreate={creating}
+          loadingAppend={appending}
+          loadingUpdate={updating}
+          loadingClear={clearing}
+        />
+      </div>
       <div style={{ marginTop: 16 }}>
         <strong>Status:</strong> {status}
       </div>
