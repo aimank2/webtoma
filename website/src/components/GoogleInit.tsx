@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 
 import { Button } from "./ui/button";
@@ -11,7 +10,11 @@ export default function GoogleInit() {
   const handleLogin = () => {
     try {
       const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID!;
-      if (!clientId) throw new Error("Missing Google Client ID");
+      if (!clientId) throw new Error("❌ Missing Google Client ID");
+
+      if (!(window as any).google?.accounts?.oauth2) {
+        throw new Error("❌ Google OAuth2 not available on window.");
+      }
 
       const tokenClient = (
         window as any
@@ -19,19 +22,24 @@ export default function GoogleInit() {
         client_id: clientId,
         scope: "https://www.googleapis.com/auth/spreadsheets",
         callback: (tokenResponse: any) => {
-          const accessToken = tokenResponse.access_token;
-          console.log("✅ Real access token:", accessToken);
+          const accessToken = tokenResponse?.access_token;
 
           if (accessToken) {
-            setGoogleToken(accessToken); // Store in context and sessionStorage
+            console.log("✅ Access Token:", accessToken);
+            setGoogleToken(accessToken); // Save to context & sessionStorage
           } else {
-            console.error("❌ Failed to retrieve access token.");
+            console.error(
+              "❌ Token response missing access_token",
+              tokenResponse
+            );
+            clearGoogleToken();
           }
         },
       });
 
       tokenClient.requestAccessToken();
-    } catch (e) {
+    } catch (error) {
+      console.error("🛑 Google Auth error:", error);
       clearGoogleToken();
     }
   };
@@ -39,7 +47,8 @@ export default function GoogleInit() {
   return (
     <div>
       <Button onClick={handleLogin} variant={"default"}>
-        <Sparkle /> Allow Access
+        <Sparkle className="mr-2 h-4 w-4" />
+        Allow Access
       </Button>
     </div>
   );

@@ -10,6 +10,7 @@ const health = require("./routes/health");
 const authRoutes = require("./routes/auth");
 const userRoutes = require("./routes/user");
 const requestRoutes = require("./routes/requests");
+const sheetPlannerRoutes = require("./routes/sheet-planner");
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use("/api/health", health);
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/requests", requestRoutes);
+app.use("/api/ai/sheet-planner", sheetPlannerRoutes);
 
 app.listen(port, () => {
   console.log("Server running on port", port);

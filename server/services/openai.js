@@ -1,5 +1,48 @@
 const axios = require("axios");
 
+const systemPromptSheetTasks = `
+You are a spreadsheet automation assistant.
+
+Your job is to understand any user request—whether casual, formal, or vague—and convert it into a valid JSON array of task objects that can be executed using the Google Sheets API.
+
+Each task must include:
+- an "action" field (from the list of supported actions below)
+- all required properties for that action
+
+🧩 Supported actions:
+- "createSheet" → { "title": string }
+
+- "appendRows" → { "range": string, "values": string[][] }
+- "updateValues" → { "range": string, "values": string[][] }
+- "clearValues" → { "range": string }
+- "createChart" → {
+    "chartType": string,
+    "title": string,
+    "range": string,        // Must match a previously defined data range
+    "position"?: string     // Optional cell position like "E2"
+  }
+
+📌 Sheet Creation:
+- If the user doesn’t mention a sheet name, infer one based on context (e.g., "Personal Budget", "Task Log", "Sales Report").
+
+📋 Data Entry (appendRows or updateValues):
+- If the user asks for a report, table, tracker, log, budgeting sheet, etc., infer relevant columns and at least one row of example data.
+- Ensure ranges match the shape of the data. For example, 1 header + 1 data row with 8 columns → range = "Sheet1!A1:H2".
+
+📊 Chart Rules:
+- Create charts only after defining data.
+- Chart ranges must point to valid data from a previous task.
+- The domain column must be a single column (e.g., A2:A10), and each data series must also be one column (e.g., B2:B10).
+
+📐 Range Format:
+- Always use full A1 notation with sheet name: "Sheet1!A1:H10"
+- Never use open-ended or partial ranges (❌ "A1:", ❌ "A2:H")
+
+🚫 Output Format:
+- Return ONLY a raw JSON array of tasks
+- Do NOT include markdown, code blocks, comments, or extra text
+`;
+
 class OpenAIService {
   constructor() {
     this.apiKey = process.env.OPENAI_API_KEY;
@@ -12,10 +55,9 @@ class OpenAIService {
     });
   }
 
-  // Existing processFormFillingWithOpenAI can remain or be deprecated
-  // async processFormFillingWithOpenAI(userInput, formStructure) { ... }
-
-  // New method for mapping with the detailed pre-prompt
+  /**
+   * FORM-FILLING (LEGACY FEATURE)
+   */
   async mapUserInputToForm(userInput, pageStructure) {
     const systemMessage = {
       role: "system",
@@ -40,18 +82,22 @@ Always return valid JSON matching this schema exactly:
     "checked": false,
     "status": "filled"
   }]
-}`
+}`,
     };
 
     const userMessage = {
       role: "user",
-      content: `Map the following user input to the form fields. ${userInput.toLowerCase().includes("random") ? "Generate appropriate random values based on each field's type and context." : ""}
+      content: `Map the following user input to the form fields. ${
+        userInput.toLowerCase().includes("random")
+          ? "Generate appropriate random values based on each field's type and context."
+          : ""
+      }
 
 Form structure:
 ${JSON.stringify(pageStructure, null, 2)}
 
 User input:
-${userInput}`
+${userInput}`,
     };
 
     try {
@@ -59,14 +105,13 @@ ${userInput}`
         model: "gpt-3.5-turbo-0125",
         messages: [systemMessage, userMessage],
         temperature: 0.7,
-        response_format: { type: "json_object" }
+        response_format: { type: "json_object" },
       });
 
-      if (!response.data?.choices?.[0]?.message?.content) {
-        throw new Error("Invalid API response structure");
-      }
+      const content = response.data?.choices?.[0]?.message?.content;
+      if (!content) throw new Error("Invalid API response structure");
 
-      const mappedForm = JSON.parse(response.data.choices[0].message.content);
+      const mappedForm = JSON.parse(content);
 
       if (!mappedForm?.status || !Array.isArray(mappedForm?.fields)) {
         throw new Error("Invalid form mapping structure");
@@ -74,118 +119,53 @@ ${userInput}`
 
       return {
         mappedForm,
-        usage: response.data.usage
+        usage: response.data.usage,
       };
     } catch (error) {
       console.error("OpenAI API Error:", error);
-      throw new Error(`Failed to map user input to form with OpenAI. ${error.message}`);
+      throw new Error(`Failed to map user input to form: ${error.message}`);
     }
   }
 
-  // New parsing method for the specific output format
-  parseMappedFormResponse(apiResponse) {
-    console.log(
-      "parseMappedFormResponse: Received API Response:",
-      JSON.stringify(apiResponse, null, 2)
-    );
+  /**
+   * SHEET TASK AUTOMATION (NEW FEATURE)
+   */
+  async mapPromptToSheetTasks(prompt) {
     try {
-      if (
-        !apiResponse ||
-        !apiResponse.choices ||
-        !apiResponse.choices[0] ||
-        !apiResponse.choices[0].message ||
-        !apiResponse.choices[0].message.content
-      ) {
-        console.error(
-          "parseMappedFormResponse: Invalid API response structure. 'content' is missing.",
-          apiResponse
-        );
-        throw new Error(
-          "Invalid API response structure from OpenAI. Expected 'choices[0].message.content'."
-        );
-      }
-      let aiMessage = apiResponse.choices[0].message.content;
-      console.log(
-        "parseMappedFormResponse: Raw aiMessage before processing:",
-        aiMessage
-      );
+      const response = await this.client.post("/chat/completions", {
+        model: "gpt-3.5-turbo-0125",
+        messages: [
+          { role: "system", content: systemPromptSheetTasks },
+          { role: "user", content: prompt },
+        ],
+        temperature: 0.3,
+      });
 
-      // Remove markdown code block fences (e.g., ```json ... ```)
-      aiMessage = aiMessage.replace(/^```json\s*|\s*```$/g, "");
-      console.log(
-        "parseMappedFormResponse: aiMessage after removing markdown fences:",
-        aiMessage
-      );
-
-      // Attempt to remove JavaScript-style line comments
-      aiMessage = aiMessage.replace(/\/\/.*$/gm, "");
-      console.log(
-        "parseMappedFormResponse: aiMessage after removing comments:",
-        aiMessage
-      );
-
-      // Trim whitespace that could interfere with parsing
-      aiMessage = aiMessage.trim();
-      console.log(
-        "parseMappedFormResponse: aiMessage after trimming:",
-        aiMessage
-      );
-
-      if (aiMessage === "") {
-        console.error(
-          "parseMappedFormResponse: aiMessage is empty after processing. Cannot parse."
-        );
-        throw new Error(
-          "AI message is empty after pre-processing, cannot parse JSON."
-        );
-      }
-
-      console.log(
-        "parseMappedFormResponse: Attempting to parse aiMessage:",
-        aiMessage
-      );
-      const parsedJson = JSON.parse(aiMessage);
-      console.log(
-        "parseMappedFormResponse: Successfully parsed JSON:",
-        parsedJson
-      );
-
-      if (
-        !parsedJson ||
-        typeof parsedJson.status !== "string" ||
-        !Array.isArray(parsedJson.fields)
-      ) {
-        console.error(
-          "AI response does not match expected mapped form structure:",
-          parsedJson
-        );
-        throw new Error(
-          "AI response format is incorrect. Expected { status: string, fields: array }."
-        );
-      }
-      return parsedJson;
+      const raw = response.data.choices?.[0]?.message?.content;
+      return this.cleanAndParseJSON(raw);
     } catch (error) {
-      console.error(
-        "Failed to parse OpenAI mapped form response:",
-        error,
-        "Raw AI Response Content (if available):",
-        apiResponse && apiResponse.choices && apiResponse.choices[0]
-          ? apiResponse.choices[0].message.content
-          : "No content found in expected path",
-        "Processed aiMessage before JSON.parse (if available):",
-        typeof aiMessage !== "undefined"
-          ? aiMessage
-          : "aiMessage was not defined at point of error"
-      );
-      throw new Error(
-        `Failed to parse AI mapped form response: ${error.message}`
-      );
+      console.error("OpenAI Sheet Task Mapping Error:", error);
+      throw new Error(`Failed to map prompt to sheet tasks: ${error.message}`);
     }
   }
 
-  // constructPrompt and parseResponse for the older PageStructure format can remain if still needed
-  // constructPrompt(userInput, formStructure) { ... }
-  // parseResponse(apiResponse, originalPageStructure) { ... }
+  /**
+   * Shared parser for cleaning and validating JSON from OpenAI
+   */
+  cleanAndParseJSON(rawText) {
+    if (!rawText) throw new Error("Empty response from OpenAI");
+
+    const cleaned = rawText
+      .replace(/^```json/, "")
+      .replace(/```$/, "")
+      .trim();
+
+    try {
+      return JSON.parse(cleaned);
+    } catch (err) {
+      throw new Error("Could not parse AI response as JSON.");
+    }
+  }
 }
 
 module.exports = new OpenAIService();

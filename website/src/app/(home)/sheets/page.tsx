@@ -11,6 +11,8 @@ import {
 import { useGoogleToken } from "@/context/GoogleTokenContext";
 import GoogleInit from "@/components/GoogleInit";
 import SheetActions from "@/components/sheet-action-card";
+import { useCreateChart } from "@/hooks/useSheet";
+import { Button } from "@/components/ui/button";
 
 export default function SheetsPage() {
   const { googleToken, clearGoogleToken } = useGoogleToken();
@@ -30,6 +32,8 @@ export default function SheetsPage() {
   const { mutateAsync: deleteValues, isPending: clearing } =
     useDeleteValues(googleToken);
   const [status, setStatus] = useState<string>("Waiting...");
+  const { mutateAsync: createChart, isPending: charting } =
+    useCreateChart(googleToken);
 
   const handleCreate = async () => {
     setStatus("Creating sheet...");
@@ -94,6 +98,24 @@ export default function SheetsPage() {
     }
   };
 
+  const handleCreateChart = async () => {
+    if (!sheetId) return setStatus("No sheet ID");
+    setStatus("Creating chart...");
+    try {
+      await createChart({
+        spreadsheetId: sheetId,
+        chartType: "BAR", // or "COLUMN", "LINE", etc.
+        title: "Static Demo Chart",
+        range: "Sheet1!A1:B10", // adjust as needed
+        position: "E1", // optional, can be omitted
+      });
+      setStatus("✅ Chart created");
+    } catch (e) {
+      console.error(e);
+      setStatus("❌ Failed to create chart");
+    }
+  };
+
   return (
     <div>
       <GoogleInit />
@@ -119,6 +141,7 @@ export default function SheetsPage() {
           loadingClear={clearing}
         />
       </div>
+      <Button onClick={handleCreateChart}>createChart</Button>
       <div style={{ marginTop: 16 }}>
         <strong>Status:</strong> {status}
       </div>
@@ -130,6 +153,13 @@ export default function SheetsPage() {
           <pre>{JSON.stringify(values, null, 2)}</pre>
         )}
       </div>
+      <button
+        onClick={handleCreateChart}
+        disabled={charting || !sheetId}
+        style={{ marginTop: 8 }}
+      >
+        {charting ? "Creating Chart..." : "Create Static Chart"}
+      </button>
     </div>
   );
 }
